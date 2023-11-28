@@ -141,7 +141,21 @@ class App {
 
 		if (!(e.target as HTMLElement).dataset.elementid) return
 
-		this.graph.graph.delete(Number((e.target as HTMLElement).dataset.elementid))
+		const nodeId = Number((e.target as HTMLElement).dataset.elementid)
+
+		const node = this.graph.graph.get(nodeId)
+
+		if (!node) return
+
+		this.graph.graph.forEach(graphNode => {
+			graphNode.edges = new Set(
+				[...graphNode.edges].filter(edge => {
+					return edge.adjacentNode !== node
+				})
+			)
+		})
+
+		this.graph.graph.delete(nodeId)
 
 		this.main()
 	}
