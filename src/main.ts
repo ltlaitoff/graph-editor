@@ -1,6 +1,7 @@
 import './style.css'
 import { Graph } from './models/Graph.ts'
 import { Edge } from './models/Edge.ts'
+import { Node } from './models/Node.ts'
 
 class App {
 	graph: Graph
@@ -8,11 +9,22 @@ class App {
 	offsetX = 0
 	offsetY = -105
 
-	mouseDown = false
-	mouseDownTarget: HTMLElement | null = null
-	currentClikedTarget: HTMLElement | null = null
+	mouseDownValues: {
+		active: boolean
+		target: HTMLElement | null
+		innerOffsetX: number
+		innerOffsetY: number
+	} = {
+		active: false,
+		target: null,
+		innerOffsetX: 0,
+		innerOffsetY: 0
+	}
 
-	pressedKey: string | null = null
+	algorithmActive = false
+	currentClickedTarget: HTMLElement | null = null
+
+	pressedKeyCode: string | null = null
 
 	constructor() {
 		this.graph = new Graph()
@@ -21,34 +33,51 @@ class App {
 	}
 
 	onKeyDown(event: KeyboardEvent): void {
-		console.log(event)
-		this.pressedKey = event.code
+		this.pressedKeyCode = event.code
 	}
 
 	onKeyUp(event: KeyboardEvent): void {
-		if (this.pressedKey === event.code) {
-			this.pressedKey = null
+		if (this.pressedKeyCode === event.code) {
+			this.pressedKeyCode = null
 			this.main()
 		}
 	}
 
 	onMouseDown(e: MouseEvent) {
-		console.log('down', e)
-		this.mouseDown = true
-		this.mouseDownTarget = e.target as HTMLElement
+		console.log('mousedown')
+
+		this.mouseDownValues = {
+			active: true,
+			target: e.target as HTMLElement,
+			innerOffsetX:
+				e.clientX - (e.target as HTMLElement).getBoundingClientRect().x - 20,
+			innerOffsetY:
+				e.clientY - (e.target as HTMLElement).getBoundingClientRect().y - 20
+		}
+
+		console.log(
+			this.mouseDownValues,
+			e,
+			e.clientX,
+			(e.target as HTMLElement).getBoundingClientRect()
+		)
 	}
 
 	onMouseUp() {
-		console.log('up')
-		this.mouseDown = false
-		this.mouseDownTarget = null
+		console.log('mouseup')
+		this.mouseDownValues = {
+			active: false,
+			target: null,
+			innerOffsetX: 0,
+			innerOffsetY: 0
+		}
 	}
 
 	onMouseMove(e: MouseEvent) {
-		console.log(this.pressedKey)
-		if (!this.mouseDown) return
+		if (!this.mouseDownValues.active) return
 
-		if (this.pressedKey === 'Space') {
+		console.log('mousemove')
+		if (this.pressedKeyCode === 'Space') {
 			console.log(e)
 			this.offsetX += e.movementX
 			this.offsetY += e.movementY
@@ -56,38 +85,37 @@ class App {
 			console.log(this.main)
 			this.main()
 		} else {
-			if (!this.mouseDownTarget) return
-			if (!this.mouseDownTarget.dataset.elementid) return
+			if (!this.mouseDownValues.target) return
+			if (!this.mouseDownValues.target.dataset.elementid) return
 			const node = this.graph.graph.get(
-				Number(this.mouseDownTarget.dataset.elementid)
+				Number(this.mouseDownValues.target.dataset.elementid)
 			)
 
 			if (!node) return
 
-			// node.x += e.movementX
-			// node.y += e.movementY
-
-			node.x = e.clientX - this.offsetX
-			node.y = e.clientY - this.offsetY
+			node.x = e.clientX - this.offsetX - this.mouseDownValues.innerOffsetX
+			node.y = e.clientY - this.offsetY - this.mouseDownValues.innerOffsetY
 
 			this.main()
 
-			console.log(this.mouseDownTarget.dataset.elementid)
+			console.log(this.mouseDownValues.target.dataset.elementid)
 		}
 	}
 
 	onClick(e: MouseEvent) {
+		console.log('click')
+
 		if ((e.target as HTMLElement).tagName !== 'svg') {
 			if (!(e.target as HTMLElement).dataset.elementid) return
 
-			console.log('currentClikedTarget: ', this.currentClikedTarget)
+			console.log('currentClikedTarget: ', this.currentClickedTarget)
 
 			if (
-				this.currentClikedTarget !== null &&
-				this.currentClikedTarget !== e.target
+				this.currentClickedTarget !== null &&
+				this.currentClickedTarget !== e.target
 			) {
 				const nodePrev = this.graph.graph.get(
-					Number(this.currentClikedTarget.dataset.elementid)
+					Number(this.currentClickedTarget.dataset.elementid)
 				)
 
 				const nodeCurrent = this.graph.graph.get(
@@ -107,13 +135,13 @@ class App {
 					nodePrev.edges.delete(findedEdge)
 				}
 
-				this.currentClikedTarget = null
+				this.currentClickedTarget = null
 
 				this.main()
 				return
 			}
 
-			this.currentClikedTarget = e.target as HTMLElement
+			this.currentClickedTarget = e.target as HTMLElement
 
 			this.main()
 			return
@@ -160,6 +188,57 @@ class App {
 		this.main()
 	}
 
+	async bfs(startIndex: number, findValue: number) {
+		const startNode = this.graph.graph.get(Number(startIndex)) as Node
+
+		const queue = [startNode]
+		const visited: Node[] = []
+
+		let previousNode: Node = startNode
+
+		while (queue.length > 0) {
+			const item = queue.shift()
+			console.log(item)
+
+			if (!item) return null
+
+			previousNode.status = 'default'
+
+			if (item.value === findValue) {
+				console.log(item.value, findValue)
+
+				item.status = 'done'
+
+				this.main()
+				setTimeout(() => {
+					item.status = 'default'
+					this.main()
+				}, 1000)
+				return item
+			}
+
+			visited.push(item)
+			previousNode = item
+			item.status = 'progress'
+
+			item.edges.forEach(edge => {
+				const adjacentNode = edge.adjacentNode
+
+				if (!visited.includes(adjacentNode) && !queue.includes(adjacentNode)) {
+					queue.push(adjacentNode)
+				}
+			})
+
+			this.main()
+
+			await new Promise(resolve => {
+				setTimeout(() => {
+					resolve(null)
+				}, 1000)
+			})
+		}
+	}
+
 	private initializeGraph() {
 		this.graph.graph = this.graph.createGraph([
 			{
@@ -198,8 +277,8 @@ class App {
 		// eslint-disable-next-line
 		const ourNodes = [...this.graph.graph.entries()].map(([_, node]) => {
 			const bg =
-				this.currentClikedTarget &&
-				Number(this.currentClikedTarget.dataset.elementid) === node.value
+				this.currentClickedTarget &&
+				Number(this.currentClickedTarget.dataset.elementid) === node.value
 					? 'red'
 					: 'white'
 
@@ -207,11 +286,17 @@ class App {
 
 			return `<g
 						fixed="false"
-						style="cursor: pointer"
+						style="cursor: pointer;"
 					>
 						<circle
 							stroke-width="2"
-							fill="${bg}"
+							fill="${
+								node.status === 'progress'
+									? 'green'
+									: node.status === 'done'
+									  ? 'yellow'
+									  : bg
+							}"
 							stroke="black"
 							r="19"
 							data-elementId="${node.value}"
@@ -303,13 +388,13 @@ class App {
 			})
 			.flat()
 
-		document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
+		document.querySelector<HTMLDivElement>('#content')!.innerHTML = `
 <div class="graph__wrapper">
 	<svg
 		width="100%"
 		height="100%"
 		preserveAspectRatio="none"
-		cursor="${this.pressedKey === 'Space' ? 'grabbing' : 'default'}"
+		cursor="${this.pressedKeyCode === 'Space' ? 'grabbing' : 'default'}"
 		>
 			<g>
 				<g>
@@ -330,9 +415,27 @@ const app = new App()
 document.addEventListener('mousedown', (e: MouseEvent) => app.onMouseDown(e))
 document.addEventListener('mouseup', () => app.onMouseUp())
 document.addEventListener('mousemove', (e: MouseEvent) => app.onMouseMove(e))
+
 document.addEventListener('contextmenu', (e: MouseEvent) =>
 	app.onContextMenu(e)
 )
 document.addEventListener('click', (e: MouseEvent) => app.onClick(e))
+
 document.addEventListener('keydown', (e: KeyboardEvent) => app.onKeyDown(e))
 document.addEventListener('keyup', (e: KeyboardEvent) => app.onKeyUp(e))
+
+const form = document.querySelector('form')
+
+form?.addEventListener('submit', e => {
+	e.preventDefault()
+
+	const from = document.querySelector('.form-from')
+	const to = document.querySelector('.form-to')
+	console.log('%c⧭', 'color: #00e600', from)
+
+	app.bfs(Number(from.value), Number(to.value))
+})
+
+setTimeout(() => {
+	app.algorithmActive = true
+}, 2000)
