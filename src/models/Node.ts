@@ -15,6 +15,16 @@ class Node {
 		this.x = x
 		this.y = y
 	}
+
+	toString() {
+		return JSON.stringify({
+			from: this.value,
+			to: -1,
+			weight: 1,
+			x: this.x,
+			y: this.y
+		})
+	}
 }
 
 export { Node }

@@ -2,6 +2,16 @@ import './style.css'
 import { Graph } from './models/Graph.ts'
 import { Edge } from './models/Edge.ts'
 import { Node } from './models/Node.ts'
+import { NODE_COLORS } from './config/nodeColors.ts'
+import { DELAY } from './config/delay.ts'
+
+async function sleep(time: number) {
+	await new Promise(resolve => {
+		setTimeout(() => {
+			resolve(null)
+		}, time)
+	})
+}
 
 class App {
 	graph: Graph
@@ -21,7 +31,7 @@ class App {
 		innerOffsetY: 0
 	}
 
-	algorithmActive = false
+	algorithmActiveId: number | null = -1
 	currentClickedTarget: HTMLElement | null = null
 
 	pressedKeyCode: string | null = null
@@ -29,7 +39,7 @@ class App {
 	constructor() {
 		this.graph = new Graph()
 		this.initializeGraph()
-		this.main()
+		this.render()
 	}
 
 	onKeyDown(event: KeyboardEvent): void {
@@ -39,7 +49,7 @@ class App {
 	onKeyUp(event: KeyboardEvent): void {
 		if (this.pressedKeyCode === event.code) {
 			this.pressedKeyCode = null
-			this.main()
+			this.render()
 		}
 	}
 
@@ -82,8 +92,8 @@ class App {
 			this.offsetX += e.movementX
 			this.offsetY += e.movementY
 
-			console.log(this.main)
-			this.main()
+			console.log(this.render)
+			this.render()
 		} else {
 			if (!this.mouseDownValues.target) return
 			if (!this.mouseDownValues.target.dataset.elementid) return
@@ -96,7 +106,7 @@ class App {
 			node.x = e.clientX - this.offsetX - this.mouseDownValues.innerOffsetX
 			node.y = e.clientY - this.offsetY - this.mouseDownValues.innerOffsetY
 
-			this.main()
+			this.render()
 
 			console.log(this.mouseDownValues.target.dataset.elementid)
 		}
@@ -137,13 +147,13 @@ class App {
 
 				this.currentClickedTarget = null
 
-				this.main()
+				this.render()
 				return
 			}
 
 			this.currentClickedTarget = e.target as HTMLElement
 
-			this.main()
+			this.render()
 			return
 		}
 
@@ -161,7 +171,7 @@ class App {
 			e.clientY - this.offsetY
 		)
 
-		this.main()
+		this.render()
 	}
 
 	onContextMenu(e: MouseEvent) {
@@ -185,40 +195,92 @@ class App {
 
 		this.graph.graph.delete(nodeId)
 
-		this.main()
+		this.render()
 	}
 
-	async bfs(startIndex: number, findValue: number) {
-		const startNode = this.graph.graph.get(Number(startIndex)) as Node
+	#nodeStatusChanger(node: Node, newStatus: 'default' | 'progress' | 'done') {
+		node.status = newStatus
+	}
 
-		const queue = [startNode]
+	#graphNodesStatusResetter(id: number) {
+		if (this.algorithmActiveId !== id) return
+
+		this.graph.graph.forEach(node => {
+			if (this.algorithmActiveId !== id) return
+
+			node.status = 'default'
+		})
+
+		this.render()
+	}
+
+	async dfsWrapper(id: number) {
 		const visited: Node[] = []
 
-		let previousNode: Node = startNode
+		for (const item of this.graph.graph.values()) {
+			if (!visited.includes(item)) {
+				if (this.algorithmActiveId !== id) {
+					return
+				}
+
+				await this.dfs(item, visited, id)
+			}
+		}
+
+		this.render()
+	}
+
+	async dfs(node: Node, visited: Node[], id: number) {
+		visited.push(node)
+
+		node.status = 'progress'
+
+		this.render()
+
+		await sleep(DELAY)
+
+		for (const edge of node.edges) {
+			if (!visited.includes(edge.adjacentNode)) {
+				if (this.algorithmActiveId !== id) {
+					return
+				}
+
+				await this.dfs(edge.adjacentNode, visited, id)
+			}
+		}
+	}
+
+	async bfsWrapper(id: number) {
+		const visited: Node[] = []
+
+		for (const item of this.graph.graph.values()) {
+			if (!visited.includes(item)) {
+				if (this.algorithmActiveId !== id) {
+					return
+				}
+
+				await this.bfs(item, visited, id)
+			}
+		}
+
+		this.render()
+	}
+
+	async bfs(node: Node, visited: Node[], id: number) {
+		const queue = [node]
 
 		while (queue.length > 0) {
-			const item = queue.shift()
-			console.log(item)
-
-			if (!item) return null
-
-			previousNode.status = 'default'
-
-			if (item.value === findValue) {
-				console.log(item.value, findValue)
-
-				item.status = 'done'
-
-				this.main()
-				setTimeout(() => {
-					item.status = 'default'
-					this.main()
-				}, 1000)
-				return item
+			if (this.algorithmActiveId !== id) {
+				return
 			}
 
+			const item = queue.shift()
+			if (!item) return null
+
+			// previousNode.status = 'default'
+
 			visited.push(item)
-			previousNode = item
+
 			item.status = 'progress'
 
 			item.edges.forEach(edge => {
@@ -229,81 +291,94 @@ class App {
 				}
 			})
 
-			this.main()
+			this.render()
 
-			await new Promise(resolve => {
-				setTimeout(() => {
-					resolve(null)
-				}, 1000)
-			})
+			await sleep(DELAY)
 		}
+
+		this.render()
 	}
 
 	private initializeGraph() {
 		this.graph.graph = this.graph.createGraph([
+			{ from: 1, to: 2, weight: 1, x: 751, y: 189 },
+			{ from: 1, to: 3, weight: 1, x: 751, y: 189 },
+			{ from: 1, to: 4, weight: 1, x: 751, y: 189 },
+			{ from: 2, to: 5, weight: 1, x: 516, y: 335 },
+			{ from: 2, to: 6, weight: 1, x: 516, y: 335 },
 			{
 				from: 3,
-				to: -1,
+				to: 7,
 				weight: 1,
-				x: 1000,
-				y: 1000
+				x: 691,
+				y: 372
 			},
 			{
-				from: 1,
-				to: 2,
+				from: 3,
+				to: 8,
 				weight: 1,
-				x: 120,
-				y: 230
+				x: 691,
+				y: 372
 			},
+			{ from: 4, to: 9, weight: 1, x: 1020, y: 336 },
+			{ from: 4, to: 10, weight: 1, x: 1020, y: 336 },
+			{ from: 5, to: -1, weight: 1, x: 390, y: 508 },
 			{
-				from: 1,
-				to: 3,
+				from: 6,
+				to: 11,
 				weight: 1,
-				x: 370,
-				y: 230
+				x: 564,
+				y: 511
 			},
+			{ from: 7, to: 11, weight: 1, x: 681, y: 502 },
+			{ from: 8, to: 1, weight: 1, x: 855, y: 494 },
+			{ from: 9, to: 12, weight: 1, x: 961, y: 492 },
+			{ from: 10, to: -1, weight: 1, x: 1136, y: 484 },
 			{
-				from: 2,
-				to: 3,
+				from: 11,
+				to: 13,
 				weight: 1,
-				x: 260,
-				y: 270
+				x: 622,
+				y: 657
 			},
-			{ from: 4, to: -1, weight: 1, x: 130, y: 130 }
+			{ from: 12, to: -1, weight: 1, x: 1002, y: 646 },
+			{ from: 13, to: 12, weight: 1, x: 813, y: 649 }
 		])
 	}
 
-	main() {
-		// eslint-disable-next-line
-		const ourNodes = [...this.graph.graph.entries()].map(([_, node]) => {
-			const bg =
-				this.currentClickedTarget &&
-				Number(this.currentClickedTarget.dataset.elementid) === node.value
-					? 'red'
-					: 'white'
+	#getNodeStatusForRender(node: Node) {
+		return this.currentClickedTarget &&
+			Number(this.currentClickedTarget.dataset.elementid) === node.value
+			? 'checked'
+			: node.status
+	}
 
-			// console.log(node.value, bg)
+	#getRenderedCircles() {
+		return [...this.graph.graph.entries()].map(
+			(
+				// eslint-disable-next-line
+				[_, node]
+			) => {
+				const status = this.#getNodeStatusForRender(node)
+				const x = (node.x ?? 0) + this.offsetX
+				const y = (node.y ?? 0) + this.offsetY
 
-			return `<g
+				return `<g
 						fixed="false"
 						style="cursor: pointer;"
 					>
 						<circle
+							class="content--circle"
 							stroke-width="2"
-							fill="${
-								node.status === 'progress'
-									? 'green'
-									: node.status === 'done'
-									  ? 'yellow'
-									  : bg
-							}"
+							fill="${NODE_COLORS[status]}"
 							stroke="black"
 							r="19"
 							data-elementId="${node.value}"
-							cx="${(node.x ?? 0) + this.offsetX}"
-							cy="${(node.y ?? 0) + this.offsetY}"
+							cx="${x}"
+							cy="${y}"
 						></circle>
 						<text
+							class="content--text"
 							font-size="14"
 							dy=".35em"
 							text-anchor="middle"
@@ -311,131 +386,257 @@ class App {
 							fill="black"
 							stroke="black"
 							data-elementId="${node.value}"
-							x="${(node.x ?? 0) + this.offsetX}"
-							y="${(node.y ?? 0) + this.offsetY}"
+							x="${x}"
+							y="${y}"
 							style="user-select: none"
 						>
 							${node.value}
 						</text>
 					</g>`
-		})
+			}
+		)
+	}
 
-		const ourEdges = [...this.graph.graph.entries()]
-			// eslint-disable-next-line
-			.map(([_, node]) => {
-				return [...node.edges].map(edge => {
-					const vectorOne = [
-						(edge.adjacentNode.x ?? 0) - (node.x ?? 0),
-						(edge.adjacentNode.y ?? 0) - (node.y ?? 0)
-					]
+	#getLinesForRender() {
+		return (
+			[...this.graph.graph.entries()]
+				// eslint-disable-next-line
+				.map(([_, node]) => {
+					return [...node.edges].map(edge => {
+						const adjacentNodeX = edge.adjacentNode.x ?? 0
+						const adjacentNodeY = edge.adjacentNode.y ?? 0
+						const nodeX = node.x ?? 0
+						const nodeY = node.y ?? 0
 
-					const vectorTwo = [
-						Math.abs((edge.adjacentNode.x ?? 0) - (node.x ?? 0)),
-						0
-					]
+						const vectorOne = [adjacentNodeX - nodeX, adjacentNodeY - nodeY]
+						const vectorOneProtectionToX = [Math.abs(adjacentNodeX - nodeX), 0]
 
-					const top = vectorOne[0] * vectorTwo[0] + vectorOne[1] * vectorTwo[1]
-					const bottom =
-						Math.sqrt(vectorOne[0] ** 2 + vectorOne[1] ** 2) *
-						Math.sqrt(vectorTwo[0] ** 2 + vectorTwo[1] ** 2)
+						const top =
+							vectorOne[0] * vectorOneProtectionToX[0] +
+							vectorOne[1] * vectorOneProtectionToX[1]
+						const bottom =
+							Math.sqrt(vectorOne[0] ** 2 + vectorOne[1] ** 2) *
+							Math.sqrt(
+								vectorOneProtectionToX[0] ** 2 + vectorOneProtectionToX[1] ** 2
+							)
 
-					const arrowRotateA = (Math.acos(top / bottom) * 180) / Math.PI
-					const arrowRotate =
-						vectorOne[1] < 0 ? 360 - arrowRotateA : arrowRotateA
+						const arrowRotateDeg = (Math.acos(top / bottom) * 180) / Math.PI
+						const arrowRotateDegWithReflection =
+							vectorOne[1] < 0 ? 360 - arrowRotateDeg : arrowRotateDeg
 
-					const test1 = [
-						19 * Math.cos((arrowRotate * Math.PI) / 180),
-						19 * Math.sin((arrowRotate * Math.PI) / 180)
-					]
+						const distanceFromCenter = [
+							19 * Math.cos((arrowRotateDegWithReflection * Math.PI) / 180),
+							19 * Math.sin((arrowRotateDegWithReflection * Math.PI) / 180)
+						]
 
-					if (node.value === 1 && edge.adjacentNode.value === 2) {
-						// const test1 = () / (Math.sqrt(vectorOne[0] ** 2 + vectorOne[1] ** 2))
-
-						console.log(vectorOne, vectorTwo, test1, arrowRotate)
-					}
-
-					/*
-
-					const f = (AB) / (|A||B|)
-					const A = 
-					*/
-
-					return `<g>
-						<path
-							d="M ${(node.x ?? 0) + this.offsetX} ${(node.y ?? 0) + this.offsetY} L ${
-								(edge.adjacentNode.x ?? 0) + this.offsetX
-							} ${(edge.adjacentNode.y ?? 0) + this.offsetY}"
-							fill="none"
-							stroke-width="2"
-							stroke="black"
-						></path>
-						<path
-						d="M ${(node.x ?? 0) + this.offsetX} ${(node.y ?? 0) + this.offsetY} L ${
-							(edge.adjacentNode.x ?? 0) + this.offsetX
-						} ${(edge.adjacentNode.y ?? 0) + this.offsetY}"
-							opacity="0"
-							fill="none"
-							stroke-width="30"
-							stroke="black"
-						></path>
-						<path stroke="black" fill="black" d="M -15 5.5 L 0 0 L -15 -5.5 Z" transform="translate (${
-							(edge.adjacentNode.x ?? 0) + this.offsetX - test1[0]
-						} ${
-							(edge.adjacentNode.y ?? 0) + this.offsetY - test1[1]
-						}) rotate(${arrowRotate})"></path>
-					</g>`
+						return `<g>
+							<path
+							class="content--edge"
+								d="M ${nodeX + this.offsetX} ${nodeY + this.offsetY} L ${
+									adjacentNodeX + this.offsetX
+								} ${adjacentNodeY + this.offsetY}"
+								fill="none"
+								stroke-width="2"
+								stroke="black"
+							></path>
+							<path
+							class="content--edge"
+							d="M ${nodeX + this.offsetX} ${nodeY + this.offsetY} L ${
+								adjacentNodeX + this.offsetX
+							} ${adjacentNodeY + this.offsetY}"
+								opacity="0"
+								fill="none"
+								stroke-width="30"
+								stroke="black"
+							></path>
+							<path stroke="black" fill="black" d="M -15 5.5 L 0 0 L -15 -5.5 Z" transform="translate (${
+								adjacentNodeX + this.offsetX - distanceFromCenter[0]
+							} ${
+								adjacentNodeY + this.offsetY - distanceFromCenter[1]
+							}) rotate(${arrowRotateDegWithReflection})"></path>
+						</g>`
+					})
 				})
-			})
-			.flat()
+				.flat()
+		)
+	}
+
+	render() {
+		const ourNodes = this.#getRenderedCircles()
+		const ourEdges = this.#getLinesForRender()
 
 		document.querySelector<HTMLDivElement>('#content')!.innerHTML = `
-<div class="graph__wrapper">
-	<svg
-		width="100%"
-		height="100%"
-		preserveAspectRatio="none"
-		cursor="${this.pressedKeyCode === 'Space' ? 'grabbing' : 'default'}"
-		>
-			<g>
-				<g>
-					${ourEdges.join(' ')}
-				</g>
-				<g>
-					${ourNodes.join(' ')}
-				</g>
-			</g>
-		</svg>
-		</div>
-`
+			<div class="graph__wrapper">
+				<svg
+				width="100%"
+				height="100%"
+				preserveAspectRatio="none"
+				cursor="${this.pressedKeyCode === 'Space' ? 'grabbing' : 'default'}"
+				>
+					<g>
+						<g>
+							${ourEdges.join(' ')}
+						</g>
+						<g>
+							${ourNodes.join(' ')}
+						</g>
+					</g>
+				</svg>
+			</div>
+		`
+	}
+
+	initializeApp() {
+		this.#initilizeUserEvents()
+		this.#initilizeMenu()
+	}
+
+	#initilizeUserEvents() {
+		document.addEventListener('mousedown', (e: MouseEvent) =>
+			this.onMouseDown(e)
+		)
+		document.addEventListener('mouseup', () => this.onMouseUp())
+		document.addEventListener('mousemove', (e: MouseEvent) =>
+			this.onMouseMove(e)
+		)
+
+		document.addEventListener('contextmenu', (e: MouseEvent) =>
+			this.onContextMenu(e)
+		)
+		document.addEventListener('click', (e: MouseEvent) => this.onClick(e))
+
+		document.addEventListener('keydown', (e: KeyboardEvent) =>
+			this.onKeyDown(e)
+		)
+		document.addEventListener('keyup', (e: KeyboardEvent) => this.onKeyUp(e))
+	}
+
+	localState:
+		| {
+				opened: false
+		  }
+		| {
+				opened: true
+				algorithm: string
+				activeElement: HTMLElement
+		  } = {
+		opened: false
+	}
+
+	#initilizeMenu() {
+		const mainMenu = document.querySelector('#main-menu')
+		// const panel = document.querySelector('#panel')
+		// const form = document.querySelector('#form')
+		// const formHeading = document.querySelector('.panel__form-heading')
+
+		mainMenu?.addEventListener('click', async e => {
+			if (!(e.target as HTMLElement).className.includes('menu__link')) return
+
+			const targetDataId = (e.target as HTMLElement).dataset.id
+
+			if (!targetDataId) {
+				return
+			}
+
+			if (targetDataId === 'bfs' || targetDataId === 'dfs') {
+				;(e.target as HTMLElement).classList.add('menu__link--active')
+
+				const activeId = new Date().getTime()
+				this.algorithmActiveId = new Date().getTime()
+
+				this.#graphNodesStatusResetter(activeId)
+
+				if (targetDataId === 'bfs') {
+					await this.bfsWrapper(activeId)
+				}
+
+				if (targetDataId === 'dfs') {
+					await this.dfsWrapper(activeId)
+				}
+
+				;(e.target as HTMLElement).classList.remove('menu__link--active')
+				this.#graphNodesStatusResetter(activeId)
+
+				return
+			}
+
+			if (targetDataId === 'reset') {
+				this.algorithmActiveId = -1
+
+				this.#graphNodesStatusResetter(this.algorithmActiveId)
+			}
+
+			// if (this.localState.opened) {
+			// 	if (this.localState.algorithm === targetDataAlgorithm) {
+			// 		panel?.classList.remove('panel--opened')
+			// 		;(e.target as HTMLElement).classList.remove('menu__link--active')
+
+			// 		this.localState = {
+			// 			opened: false
+			// 		}
+			// 	} else {
+			// 		this.localState.algorithm = targetDataAlgorithm
+			// 		;(e.target as HTMLElement).classList.add('menu__link--active')
+			// 		this.localState.activeElement.classList.remove('menu__link--active')
+
+			// 		this.localState.activeElement = e.target as HTMLElement
+			// 	}
+			// } else {
+			// 	panel?.classList.add('panel--opened')
+			// 	;(e.target as HTMLElement).classList.add('menu__link--active')
+
+			// 	this.localState = {
+			// 		opened: true,
+			// 		algorithm: targetDataAlgorithm,
+			// 		activeElement: e.target as HTMLElement
+			// 	}
+			// }
+
+			// if (formHeading) {
+			// 	formHeading.textContent = targetDataAlgorithm
+			// }
+		})
+
+		// form?.addEventListener('submit', e => {
+		// 	e.preventDefault()
+
+		// 	// const start = document.querySelector('#panel__form--from')
+		// 	// const to = document.querySelector('#panel__form--to')
+		// 	// console.log('%c⧭', 'color: #00e600', start)
+		// 	const algorithm = this.localState.algorithm
+
+		// 	// const startNode = this.graph.graph.get(Number(start.value))
+
+		// 	if (algorithm === 'bfs') {
+		// 		this.bfsWrapper()
+		// 	}
+
+		// 	if (algorithm === 'dfs') {
+		// 		this.dfsWrapper()
+		// 	}
+
+		// 	// app[algorithm]?.(startNode, [])
+		// })
 	}
 }
 
 const app = new App()
 
-document.addEventListener('mousedown', (e: MouseEvent) => app.onMouseDown(e))
-document.addEventListener('mouseup', () => app.onMouseUp())
-document.addEventListener('mousemove', (e: MouseEvent) => app.onMouseMove(e))
+app.initializeApp()
 
-document.addEventListener('contextmenu', (e: MouseEvent) =>
-	app.onContextMenu(e)
-)
-document.addEventListener('click', (e: MouseEvent) => app.onClick(e))
+// }
 
-document.addEventListener('keydown', (e: KeyboardEvent) => app.onKeyDown(e))
-document.addEventListener('keyup', (e: KeyboardEvent) => app.onKeyUp(e))
+/*
 
-const form = document.querySelector('form')
+Форма з двумя input, checkbox и кнопкой
+BFS
+DFS
 
-form?.addEventListener('submit', e => {
-	e.preventDefault()
+BFS => form open => render with form for BFS from App class state
 
-	const from = document.querySelector('.form-from')
-	const to = document.querySelector('.form-to')
-	console.log('%c⧭', 'color: #00e600', from)
+state: {
+	opened: boolean,
+	algorithm: 'BFS' | 'DFS',
+}
 
-	app.bfs(Number(from.value), Number(to.value))
-})
-
-setTimeout(() => {
-	app.algorithmActive = true
-}, 2000)
+*/
