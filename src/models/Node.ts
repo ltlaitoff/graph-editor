@@ -7,7 +7,7 @@ class Node {
 
 	x: number | null = null
 	y: number | null = null
-	status: 'default' | 'progress' | 'done' = 'default'
+	status: 'default' | 'progress' | 'done' | 'passed' = 'default'
 
 	constructor(value: number, x: number | null = null, y: number | null = null) {
 		this.value = value

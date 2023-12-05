@@ -44,6 +44,11 @@ class App {
 
 	onKeyDown(event: KeyboardEvent): void {
 		this.pressedKeyCode = event.code
+
+		if (event.code === 'Escape') {
+			this.currentClickedTarget = null
+			this.render()
+		}
 	}
 
 	onKeyUp(event: KeyboardEvent): void {
@@ -198,9 +203,9 @@ class App {
 		this.render()
 	}
 
-	#nodeStatusChanger(node: Node, newStatus: 'default' | 'progress' | 'done') {
-		node.status = newStatus
-	}
+	// #nodeStatusChanger(node: Node, newStatus: 'default' | 'progress' | 'done') {
+	// 	node.status = newStatus
+	// }
 
 	#graphNodesStatusResetter(id: number) {
 		if (this.algorithmActiveId !== id) return
@@ -277,8 +282,6 @@ class App {
 			const item = queue.shift()
 			if (!item) return null
 
-			// previousNode.status = 'default'
-
 			visited.push(item)
 
 			item.status = 'progress'
@@ -296,6 +299,105 @@ class App {
 			await sleep(DELAY)
 		}
 
+		this.render()
+	}
+
+	async findPath(
+		start: Node,
+		end: Node,
+		visited: Node[],
+		path: Node[],
+		id: number
+	) {
+		if (start === end) {
+			start.status = 'done'
+
+			path.push(start)
+
+			this.render()
+			return true
+		}
+
+		visited.push(start)
+
+		if (start.status === 'default') {
+			start.status = 'progress'
+		}
+
+		await sleep(DELAY)
+
+		this.render()
+
+		for (const edge of start.edges) {
+			if (this.algorithmActiveId !== id) {
+				return
+			}
+
+			if (!visited.includes(edge.adjacentNode)) {
+				if (await this.findPath(edge.adjacentNode, end, visited, path, id)) {
+					if (this.algorithmActiveId !== id) {
+						return
+					}
+
+					path.push(start)
+
+					start.status = 'done'
+					this.render()
+
+					return true
+				}
+			}
+		}
+
+		if (start.status === 'progress') {
+			start.status = 'passed'
+		}
+
+		this.render()
+	}
+
+	async findPathes(
+		start: Node,
+		end: Node,
+		visited: Set<Node>,
+		paths: Node[][],
+		id: number
+	) {
+		if (start === end) {
+			paths.push([...visited, start])
+
+			paths[paths.length - 1].forEach(item => {
+				item.status = 'done'
+			})
+
+			return
+		}
+
+		visited.add(start)
+
+		if (start.status === 'default') {
+			start.status = 'progress'
+		}
+
+		await sleep(DELAY)
+
+		this.render()
+
+		for (const edge of start.edges) {
+			if (this.algorithmActiveId !== id) {
+				return
+			}
+
+			if (!visited.has(edge.adjacentNode)) {
+				await this.findPathes(edge.adjacentNode, end, visited, paths, id)
+			}
+		}
+
+		visited.delete(start)
+
+		if (start.status === 'progress') {
+			start.status = 'passed'
+		}
 		this.render()
 	}
 
@@ -525,9 +627,9 @@ class App {
 
 	#initilizeMenu() {
 		const mainMenu = document.querySelector('#main-menu')
-		// const panel = document.querySelector('#panel')
-		// const form = document.querySelector('#form')
-		// const formHeading = document.querySelector('.panel__form-heading')
+		const panel = document.querySelector('#panel')
+		const form = document.querySelector('#form')
+		const formHeading = document.querySelector('.panel__form-heading')
 
 		mainMenu?.addEventListener('click', async e => {
 			if (!(e.target as HTMLElement).className.includes('menu__link')) return
@@ -564,59 +666,97 @@ class App {
 				this.algorithmActiveId = -1
 
 				this.#graphNodesStatusResetter(this.algorithmActiveId)
+				return
 			}
 
-			// if (this.localState.opened) {
-			// 	if (this.localState.algorithm === targetDataAlgorithm) {
-			// 		panel?.classList.remove('panel--opened')
-			// 		;(e.target as HTMLElement).classList.remove('menu__link--active')
+			if (this.localState.opened) {
+				if (this.localState.algorithm === targetDataId) {
+					panel?.classList.remove('panel--opened')
+					;(e.target as HTMLElement).classList.remove('menu__link--active')
 
-			// 		this.localState = {
-			// 			opened: false
-			// 		}
-			// 	} else {
-			// 		this.localState.algorithm = targetDataAlgorithm
-			// 		;(e.target as HTMLElement).classList.add('menu__link--active')
-			// 		this.localState.activeElement.classList.remove('menu__link--active')
+					this.localState = {
+						opened: false
+					}
+				} else {
+					this.localState.algorithm = targetDataId
+					;(e.target as HTMLElement).classList.add('menu__link--active')
+					this.localState.activeElement.classList.remove('menu__link--active')
 
-			// 		this.localState.activeElement = e.target as HTMLElement
-			// 	}
-			// } else {
-			// 	panel?.classList.add('panel--opened')
-			// 	;(e.target as HTMLElement).classList.add('menu__link--active')
+					this.localState.activeElement = e.target as HTMLElement
+				}
+			} else {
+				panel?.classList.add('panel--opened')
+				;(e.target as HTMLElement).classList.add('menu__link--active')
 
-			// 	this.localState = {
-			// 		opened: true,
-			// 		algorithm: targetDataAlgorithm,
-			// 		activeElement: e.target as HTMLElement
-			// 	}
-			// }
+				this.localState = {
+					opened: true,
+					algorithm: targetDataId,
+					activeElement: e.target as HTMLElement
+				}
+			}
 
-			// if (formHeading) {
-			// 	formHeading.textContent = targetDataAlgorithm
-			// }
+			if (formHeading) {
+				formHeading.textContent = targetDataId
+			}
 		})
 
-		// form?.addEventListener('submit', e => {
-		// 	e.preventDefault()
+		form?.addEventListener('submit', async e => {
+			e.preventDefault()
 
-		// 	// const start = document.querySelector('#panel__form--from')
-		// 	// const to = document.querySelector('#panel__form--to')
-		// 	// console.log('%c⧭', 'color: #00e600', start)
-		// 	const algorithm = this.localState.algorithm
+			const start = document.querySelector('#panel__form--from')
+			const to = document.querySelector('#panel__form--to')
 
-		// 	// const startNode = this.graph.graph.get(Number(start.value))
+			// @ts-expect-error TODO
+			const algorithm = this.localState.algorithm
+			// @ts-expect-error TODO
+			const startNode = this.graph.graph.get(Number(start.value))
+			// @ts-expect-error TODO
+			const endNode = this.graph.graph.get(Number(to.value))
 
-		// 	if (algorithm === 'bfs') {
-		// 		this.bfsWrapper()
-		// 	}
+			if (!startNode || !endNode) return
 
-		// 	if (algorithm === 'dfs') {
-		// 		this.dfsWrapper()
-		// 	}
+			if (algorithm === 'find-one-path') {
+				const path: Node[] = []
 
-		// 	// app[algorithm]?.(startNode, [])
-		// })
+				const activeId = new Date().getTime()
+				this.algorithmActiveId = new Date().getTime()
+
+				this.#graphNodesStatusResetter(activeId)
+
+				startNode.status = 'done'
+				endNode.status = 'done'
+
+				console.log(await this.findPath(startNode, endNode, [], path, activeId))
+
+				await sleep(DELAY)
+
+				this.#graphNodesStatusResetter(activeId)
+
+				console.log(path)
+			}
+
+			if (algorithm === 'find-all-paths') {
+				const path: Node[][] = []
+
+				const activeId = new Date().getTime()
+				this.algorithmActiveId = new Date().getTime()
+
+				this.#graphNodesStatusResetter(activeId)
+
+				startNode.status = 'done'
+				endNode.status = 'done'
+
+				console.log(
+					await this.findPathes(startNode, endNode, new Set(), path, activeId)
+				)
+
+				await sleep(DELAY)
+
+				this.#graphNodesStatusResetter(activeId)
+
+				console.log(path)
+			}
+		})
 	}
 }
 
