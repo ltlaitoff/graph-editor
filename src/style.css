@@ -36,7 +36,7 @@ body,
 	position: absolute;
 	bottom: 0;
 	left: 50%;
-	width: 400px;
+
 	height: 50px;
 	background: var(--color-purple-50);
 	transform: translateX(-50%);

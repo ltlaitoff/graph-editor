@@ -1,7 +1,9 @@
 import { Edge } from './Edge'
 
+import { GraphValue } from './Graph'
+
 class Node {
-	value: number | null = null
+	value: GraphValue
 	edges = new Set<Edge>()
 	parents = new Map<Node, Edge>()
 
@@ -9,7 +11,11 @@ class Node {
 	y: number | null = null
 	status: 'default' | 'progress' | 'done' | 'passed' = 'default'
 
-	constructor(value: number, x: number | null = null, y: number | null = null) {
+	constructor(
+		value: GraphValue,
+		x: number | null = null,
+		y: number | null = null
+	) {
 		this.value = value
 
 		this.x = x
