@@ -39,32 +39,43 @@ export class Graph {
 			}
 
 			fromNode.edges.delete(findedEdgeFromTo)
+			toNode.parents.delete(fromNode)
 
 			if (findedEdgeToFrom) {
 				if (this.mode === 'directed') {
 					if (findedEdgeToFrom.status === 'no-direction') {
 						toNode.edges.delete(findedEdgeToFrom)
+						fromNode.parents.delete(toNode)
 					}
 
 					if (findedEdgeToFrom.status === 'standart') {
-						fromNode.edges.add(new Edge(toNode, 1, 'no-direction'))
+						const newEdge = new Edge(toNode, 1, 'no-direction')
+						fromNode.edges.add(newEdge)
+						toNode.parents.set(fromNode, newEdge)
 					}
 				}
 
 				if (this.mode === 'undirected') {
 					toNode.edges.delete(findedEdgeToFrom)
+					fromNode.parents.delete(toNode)
 				}
 			}
 		} else {
-			fromNode.edges.add(new Edge(toNode, weight, 'standart'))
+			const newEdge = new Edge(toNode, weight, 'standart')
+			fromNode.edges.add(newEdge)
+			toNode.parents.set(fromNode, newEdge)
 
 			if (!findedEdgeToFrom) {
 				if (this.mode === 'directed') {
-					toNode.edges.add(new Edge(fromNode, weight, 'no-direction'))
+					const newEdge = new Edge(fromNode, weight, 'no-direction')
+					toNode.edges.add(newEdge)
+					fromNode.parents.set(toNode, newEdge)
 				}
 
 				if (this.mode === 'undirected') {
-					toNode.edges.add(new Edge(fromNode, weight, 'standart'))
+					const newEdge = new Edge(fromNode, weight, 'standart')
+					toNode.edges.add(newEdge)
+					fromNode.parents.set(toNode, newEdge)
 				}
 			}
 		}

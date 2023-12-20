@@ -822,96 +822,237 @@ class App {
 		// console.log('DFS:', jungle.map(item => item.value).join(', 	'))
 	}
 
-	// async initHashTables(
-	// 	start: Node,
-	// 	graph: Map<GraphValue, Node>,
-	// 	unprocessedNodes: Set<Node>,
-	// 	timeToNodes: Map<Node, number>
-	// ) {
-	// 	for (const item of graph) {
-	// 		const node = item[1]
-	// 		unprocessedNodes.add(node)
-	// 		timeToNodes.set(node, Infinity)
-	// 	}
-	// 	timeToNodes.set(start, 0)
-	// }
+	async initHashTables(
+		start: Node,
+		graph: Map<GraphValue, Node>,
+		unprocessedNodes: Set<Node>,
+		timeToNodes: Map<Node, number>
+	) {
+		for (const item of graph) {
+			const node = item[1]
+			unprocessedNodes.add(node)
+			timeToNodes.set(node, Infinity)
+		}
 
-	// async getNodeWithMinTime(
-	// 	unprocessedNodes: Set<Node>,
-	// 	timeToNodes: Map<Node, number>
-	// ) {
-	// 	let nodeWithMinTime: Node
+		timeToNodes.set(start, 0)
+	}
 
-	// 	let minTime = Infinity
+	async getNodeWithMinTime(
+		unprocessedNodes: Set<Node>,
+		timeToNodes: Map<Node, number>
+	) {
+		let nodeWithMinTime: Node | null = null
 
-	// 	for (const node of unprocessedNodes) {
-	// 		const time = timeToNodes.get(node)
-	// 		if (time && time < minTime) {
-	// 			minTime = time
-	// 			nodeWithMinTime = node
-	// 		}
-	// 	}
+		let minTime = Infinity
 
-	// 	return nodeWithMinTime
-	// }
+		for (const node of unprocessedNodes) {
+			const time = timeToNodes.get(node)
 
-	// async calculateTimeToEachNode(
-	// 	unprocessedNodes: Set<Node>,
-	// 	timeToNodes: Map<Node, number>
-	// ) {
-	// 	while (unprocessedNodes.size > 0) {
-	// 		const node = await this.getNodeWithMinTime(unprocessedNodes, timeToNodes)
+			if (time !== undefined && time < minTime) {
+				minTime = time
+				nodeWithMinTime = node
+			}
+		}
 
-	// 		if (!node) return
-	// 		if (timeToNodes.get(node) === Infinity) return
+		return nodeWithMinTime
+	}
 
-	// 		for (const edge of node.edges) {
-	// 			const adjacentNode = edge.adjacentNode
-	// 			if (unprocessedNodes.has(adjacentNode)) {
-	// 				const nodeTime = timeToNodes.get(node)
-	// 				if (nodeTime === undefined) continue
+	async calculateTimeToEachNode(
+		unprocessedNodes: Set<Node>,
+		timeToNodes: Map<Node, number>
+	) {
+		while (unprocessedNodes.size > 0) {
+			const node = await this.getNodeWithMinTime(unprocessedNodes, timeToNodes)
+			console.log(node)
 
-	// 				const timeToCheck = nodeTime + edge.weight
+			if (!node) return
+			if (timeToNodes.get(node) === Infinity) return
 
-	// 				const adjacentNodeTime = timeToNodes.get(adjacentNode)
-	// 				if (adjacentNodeTime === undefined) continue
+			await this.#setNodeStatus(node, {
+				status: 'progress',
+				statusForChange: 'default'
+			})
 
-	// 				if (timeToCheck < adjacentNodeTime) {
-	// 					timeToNodes.set(adjacentNode, timeToCheck)
-	// 				}
-	// 			}
-	// 		}
-	// 		unprocessedNodes.delete(node)
-	// 	}
-	// }
+			for (const edge of node.edges) {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+					continue
+				}
 
-	// async getShortestPath(
-	// 	start: Node,
-	// 	end: Node,
-	// 	timeToNodes: Map<Node, number>
-	// ) {
-	// 	const path = []
-	// 	let node = end
+				const adjacentNode = edge.adjacentNode
 
-	// 	while (node !== start) {
-	// 		const minTimeToNode = timeToNodes.get(node)
-	// 		path.unshift(node)
+				if (unprocessedNodes.has(adjacentNode)) {
+					const nodeTime = timeToNodes.get(node)
+					if (nodeTime === undefined) continue
 
-	// 		// for (const )
-	// 	}
-	// }
+					const timeToCheck = nodeTime + edge.weight
 
-	// async dijkstra(start: Node, end: Node) {
-	// 	const unprocessedNodes = new Set<Node>()
-	// 	const timeToNodes = new Map<Node, number>()
+					const adjacentNodeTime = timeToNodes.get(adjacentNode)
+					if (adjacentNodeTime === undefined) continue
 
-	// 	this.initHashTables(start, this.graph.graph, unprocessedNodes, timeToNodes)
-	// 	this.calculateTimeToEachNode(unprocessedNodes, timeToNodes)
+					if (timeToCheck < adjacentNodeTime) {
+						timeToNodes.set(adjacentNode, timeToCheck)
+					}
+				}
+			}
 
-	// 	if (timeToNodes.get(end) === Infinity) return null
+			unprocessedNodes.delete(node)
+		}
+	}
 
-	// 	return this.getShortestPath(start, end, timeToNodes)
-	// }
+	async getShortestPath(
+		start: Node,
+		end: Node,
+		timeToNodes: Map<Node, number>
+	) {
+		const path = []
+		let node = end
+
+		while (node !== start) {
+			const minTimeToNode = timeToNodes.get(node)
+			path.unshift(node)
+
+			for (const parentAndEdge of node.parents.entries()) {
+				const parent = parentAndEdge[0]
+				const parentEdge = parentAndEdge[1]
+
+				if (!timeToNodes.has(parent)) continue
+
+				const prevNodeFound =
+					Number(parentEdge.weight + (timeToNodes.get(parent) ?? 0)) ===
+					minTimeToNode
+
+				if (prevNodeFound) {
+					timeToNodes.delete(node)
+					node = parent
+					break
+				}
+			}
+		}
+
+		path.unshift(node)
+		return path
+	}
+
+	async dijkstra(start: Node, end: Node) {
+		const unprocessedNodes = new Set<Node>()
+		const timeToNodes = new Map<Node, number>()
+
+		await this.initHashTables(
+			start,
+			this.graph.graph,
+			unprocessedNodes,
+			timeToNodes
+		)
+
+		await this.calculateTimeToEachNode(unprocessedNodes, timeToNodes)
+		console.log('%c⧭', 'color: #d90000', unprocessedNodes)
+		console.log('%c⧭', 'color: #ffa640', timeToNodes)
+		console.log(timeToNodes.get(end))
+
+		if (timeToNodes.get(end) === Infinity) return null
+
+		return await this.getShortestPath(start, end, timeToNodes)
+	}
+
+	/* LB 6 2*/
+
+	async bellmanFord(startNode: Node) {
+		const distances = new Map<Node, number>()
+
+		for (const node of this.graph.graph.values()) {
+			distances.set(node, Infinity)
+		}
+
+		distances.set(startNode, 0)
+
+		for (let i = 0; i < this.graph.graph.size; i++) {
+			for (const currentNode of this.graph.graph.values()) {
+				for (const edge of currentNode.edges) {
+					if (
+						this.graph.mode === 'directed' &&
+						edge.status === 'no-direction'
+					) {
+						continue
+					}
+
+					const newDistance = distances.get(currentNode)! + edge.weight
+
+					if (newDistance < distances.get(edge.adjacentNode)!) {
+						distances.set(edge.adjacentNode, newDistance)
+					}
+				}
+			}
+		}
+
+		for (const currentNode of this.graph.graph.values()) {
+			if (currentNode === startNode) {
+				continue
+			}
+
+			for (const edge of currentNode.edges) {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+					continue
+				}
+
+				if (
+					distances.get(currentNode)! + edge.weight <
+					distances.get(edge.adjacentNode)!
+				) {
+					console.error('Graph contains a negative cycle.')
+					return
+				}
+			}
+		}
+
+		return distances
+	}
+
+	floydWarshall(nodes: Node[]) {
+		const numNodes = nodes.length
+
+		// Initialize the distance matrix with Infinity
+		const distances: number[][] = Array.from({ length: numNodes }, () =>
+			Array(numNodes).fill(Infinity)
+		)
+
+		// Initialize the distance matrix with actual edge weights
+		nodes.forEach((node, i) => {
+			distances[i][i] = 0
+
+			node.edges.forEach(edge => {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+					return
+				}
+
+				const j = nodes.indexOf(edge.adjacentNode)
+
+				distances[i][j] = edge.weight
+			})
+		})
+
+		// Floyd-Warshall algorithm
+		for (let k = 0; k < numNodes; k++) {
+			for (let i = 0; i < numNodes; i++) {
+				for (let j = 0; j < numNodes; j++) {
+					if (distances[i][k] + distances[k][j] < distances[i][j]) {
+						distances[i][j] = distances[i][k] + distances[k][j]
+					}
+				}
+			}
+		}
+
+		nodes.forEach((nodeTop, i) => {
+			nodes.forEach((nodeBottom, j) => {
+				const result = distances[i][j]
+
+				if (result === Infinity) return
+
+				console.log(`${nodeTop.value} => ${nodeBottom.value}: ${result}`)
+			})
+		})
+
+		return distances
+	}
 
 	async findPath(
 		start: Node,
@@ -1078,7 +1219,7 @@ class App {
 	}
 
 	#getRenderedCircles() {
-		console.log(JSON.stringify([...this.graph.graph.values()]))
+		// console.log(JSON.stringify([...this.graph.graph.values()]))
 
 		return [...this.graph.graph.entries()].map(
 			(
@@ -1465,6 +1606,7 @@ class App {
 		const panel = document.querySelector('#panel')
 		const form = document.querySelector('#form')
 		const formHeading = document.querySelector('.panel__form-heading')
+		const formCodeOutput = document.querySelector('#form-code-output')
 
 		mainMenu?.addEventListener('click', async e => {
 			if (!(e.target as HTMLElement).className.includes('menu__link')) return
@@ -1601,6 +1743,8 @@ class App {
 		form?.addEventListener('submit', async e => {
 			e.preventDefault()
 
+			formCodeOutput.textContent = ''
+
 			const start = document.querySelector('#panel__form--from')
 			const to = document.querySelector('#panel__form--to')
 
@@ -1662,6 +1806,104 @@ class App {
 
 					this.#graphNodesStatusResetter(activeId)
 				})
+			}
+
+			if (algorithm === 'lb6one') {
+				const activeId = new Date().getTime()
+				this.algorithmActiveId = activeId
+
+				this.#graphNodesStatusResetter(activeId)
+
+				startNode.status = 'done'
+				this.render()
+
+				const distances = await this.bellmanFord(startNode)
+
+				if (distances) {
+					const result = [...distances.entries()].reduce(
+						(acc, [node, distance]) => {
+							return {
+								...acc,
+								[node.value]: distance
+							}
+						},
+						{}
+					)
+
+					formCodeOutput.textContent = JSON.stringify(result, null, 2)
+				} else {
+					console.log('Paths not found')
+				}
+			}
+
+			if (algorithm === 'lb6two') {
+				const activeId = new Date().getTime()
+				this.algorithmActiveId = activeId
+
+				this.#graphNodesStatusResetter(activeId)
+
+				startNode.status = 'done'
+				endNode.status = 'done'
+
+				const result = await this.dijkstra(startNode, endNode)
+
+				formCodeOutput.textContent = result
+					?.map(item => item.value)
+					.join(' -> ')
+				// .then(async () => {
+				// 	console.log('asdsd')
+				// 	// await sleep(DELAY)
+
+				// 	this.#graphNodesStatusResetter(activeId)
+				// })
+			}
+
+			if (algorithm === 'lb6three') {
+				const activeId = new Date().getTime()
+				this.algorithmActiveId = activeId
+
+				this.#graphNodesStatusResetter(activeId)
+
+				const nodes = Array.from(this.graph.graph.values()).sort((a, b) => {
+					return Number(a.value) - Number(b.value)
+				})
+				console.log('%c⧭', 'color: #731d1d', nodes)
+
+				const result = await this.floydWarshall(nodes)
+
+				formCodeOutput.textContent = JSON.stringify(
+					result.map(item => {
+						const tmp: string[] = []
+
+						item.map(subItem => {
+							let s = String(subItem)
+
+							if (subItem === Infinity) {
+								s = '-'
+							}
+
+							if (s.length < 2) {
+								s = ' ' + s
+							}
+
+							if (s.length < 3 && s.length === 2) {
+								s = ' ' + s
+							}
+
+							tmp.push(s)
+						})
+
+						return tmp.join(',')
+					}),
+					null,
+					2
+				)
+				// .then(async () => {
+				// 	console.log('asdsd')
+				// 	// await sleep(DELAY)
+
+				// 	this.#graphNodesStatusResetter(activeId)
+				// })
 			}
 
 			// if (algorithm === 'find-one-path') {
