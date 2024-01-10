@@ -1,67 +1,14 @@
 import './style.css'
-import { Graph, GraphValue } from './models/Graph.ts'
+import { Graph } from './models/Graph.ts'
 import { Edge } from './models/Edge.ts'
 import { Node } from './models/Node.ts'
-import { NODE_COLORS } from './config/nodeColors.ts'
 import { DELAY } from './config/delay.ts'
 import words from './data/words.ts'
+import { Render } from './modules/Render.ts'
 
-async function sleep(time: number) {
-	await new Promise(resolve => {
-		setTimeout(() => {
-			resolve(null)
-		}, time)
-	})
-}
-
-class TreeNode {
-	value: GraphValue
-	childrens: TreeNode[] = []
-
-	constructor(value: GraphValue) {
-		this.value = value
-	}
-
-	find(node: TreeNode, value: GraphValue): TreeNode | undefined {
-		if (node.value === value) return node
-
-		for (const child of node.childrens) {
-			const result = this.find(child, value)
-
-			if (result) {
-				return result
-			}
-		}
-
-		return undefined
-	}
-
-	add(node: TreeNode) {
-		this.childrens.push(node)
-	}
-}
-
-class Tree {
-	root: TreeNode
-
-	constructor(value: GraphValue) {
-		this.root = new TreeNode(value)
-	}
-
-	add(node: GraphValue, value: GraphValue) {
-		const prevNode = this.root.find(this.root, node)
-
-		if (!prevNode) return
-
-		prevNode.add(new TreeNode(value))
-	}
-
-	display() {
-		console.log(this.root)
-	}
-}
-
-const DEBUG = false
+import { sleep } from './helpers'
+import { BFS } from './algorithms/BFS'
+import { DFS } from './algorithms/DFS'
 
 class App {
 	graph: Graph
@@ -82,7 +29,6 @@ class App {
 		innerOffsetY: 0
 	}
 
-	algorithmActiveId: number | null = -1
 	currentClickedTarget: HTMLElement | null = null
 
 	pressedKeyCode: string | null = null
@@ -260,10 +206,10 @@ class App {
 	// }
 
 	#graphNodesStatusResetter(id: number) {
-		if (this.algorithmActiveId !== id) return
+		if (window.algorithmActiveId !== id) return
 
 		this.graph.graph.forEach(node => {
-			if (this.algorithmActiveId !== id) return
+			if (window.algorithmActiveId !== id) return
 
 			node.status = 'default'
 		})
@@ -272,10 +218,10 @@ class App {
 	}
 
 	#graphEdgesTypeResetter(id: number) {
-		if (this.algorithmActiveId !== id) return
+		if (window.algorithmActiveId !== id) return
 
 		this.graph.graph.forEach(node => {
-			if (this.algorithmActiveId !== id) return
+			if (window.algorithmActiveId !== id) return
 
 			node.edges.forEach(edge => {
 				edge.type = 'default'
@@ -320,117 +266,6 @@ class App {
 
 	/* Algorithms */
 
-	// TODO: Move to another class
-	async dfsWrapper(id: number) {
-		const visited: Node[] = []
-
-		for (const item of this.graph.graph.values()) {
-			if (!visited.includes(item)) {
-				if (this.algorithmActiveId !== id) {
-					return
-				}
-
-				await this.dfs(item, visited, id)
-			}
-		}
-
-		this.render()
-	}
-
-	async dfs(node: Node, visited: Node[], id: number) {
-		const jungle: Node[] = []
-		const stack = [node]
-
-		while (stack.length > 0) {
-			if (this.algorithmActiveId !== id) {
-				return
-			}
-
-			const item = stack.pop()
-			if (!item) return null
-
-			visited.push(item)
-			jungle.push(item)
-			;[...item.edges].toReversed().forEach(edge => {
-				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
-					return
-				}
-
-				const adjacentNode = edge.adjacentNode
-
-				if (!visited.includes(adjacentNode) && !stack.includes(adjacentNode)) {
-					stack.push(adjacentNode)
-				}
-			})
-
-			await this.#setNodeStatus(item, {
-				status: 'progress',
-				sleep: false
-			})
-			await sleep(DELAY)
-		}
-
-		this.render()
-
-		console.log('DFS:', jungle.map(item => item.value).join(', 	'))
-	}
-
-	// TODO: Move to another class
-	async bfsWrapper(id: number) {
-		const visited: Node[] = []
-
-		for (const item of this.graph.graph.values()) {
-			if (!visited.includes(item)) {
-				if (this.algorithmActiveId !== id) {
-					return
-				}
-
-				await this.bfs(item, visited, id)
-			}
-		}
-
-		this.render()
-	}
-
-	async bfs(node: Node, visited: Node[], id: number) {
-		const tree = new Tree(node.value)
-
-		const queue = [node]
-
-		while (queue.length > 0) {
-			if (this.algorithmActiveId !== id) {
-				return
-			}
-
-			const item = queue.shift()
-			if (!item) return null
-
-			visited.push(item)
-
-			item.edges.forEach(edge => {
-				if (this.graph.mode === 'directed' && edge.status === 'no-direction')
-					return
-
-				const adjacentNode = edge.adjacentNode
-
-				if (!visited.includes(adjacentNode) && !queue.includes(adjacentNode)) {
-					tree.add(item.value ?? -1, adjacentNode.value ?? -1)
-					queue.push(adjacentNode)
-				}
-			})
-
-			await this.#setNodeStatus(item, {
-				status: 'progress',
-				sleep: false
-			})
-			await sleep(DELAY)
-		}
-
-		tree.display()
-
-		this.render()
-	}
-
 	async lb5TaskOne(
 		node: Node,
 		visited: Node[],
@@ -456,7 +291,7 @@ class App {
 			}
 
 			if (!visited.includes(edge.adjacentNode)) {
-				if (this.algorithmActiveId !== id) {
+				if (window.algorithmActiveId !== id) {
 					return
 				}
 
@@ -487,7 +322,7 @@ class App {
 
 		for (const item of this.graph.graph.values()) {
 			if (!visited.includes(item)) {
-				if (this.algorithmActiveId !== id) {
+				if (window.algorithmActiveId !== id) {
 					return
 				}
 
@@ -726,7 +561,7 @@ class App {
 	) {
 		const jungle: Node[] = []
 
-		if (this.algorithmActiveId !== id) {
+		if (window.algorithmActiveId !== id) {
 			return
 		}
 
@@ -1065,13 +900,13 @@ class App {
 		})
 
 		for (const edge of start.edges) {
-			if (this.algorithmActiveId !== id) {
+			if (window.algorithmActiveId !== id) {
 				return
 			}
 
 			if (!visited.includes(edge.adjacentNode)) {
 				if (await this.findPath(edge.adjacentNode, end, visited, path, id)) {
-					if (this.algorithmActiveId !== id) {
+					if (window.algorithmActiveId !== id) {
 						return
 					}
 
@@ -1126,7 +961,7 @@ class App {
 		// this.render()
 
 		for (const edge of start.edges) {
-			if (this.algorithmActiveId !== id) {
+			if (window.algorithmActiveId !== id) {
 				return
 			}
 
@@ -1197,181 +1032,18 @@ class App {
 		])
 	}
 
-	#getNodeStatusForRender(node: Node) {
-		return this.currentClickedTarget &&
-			this.currentClickedTarget.dataset.elementid === node.value
-			? 'checked'
-			: node.status
-	}
-
-	#getRenderedCircles() {
-		// console.log(JSON.stringify([...this.graph.graph.values()]))
-
-		return [...this.graph.graph.entries()].map(
-			(
-				// eslint-disable-next-line
-				[_, node]
-			) => {
-				const status = this.#getNodeStatusForRender(node)
-				const x = (node.x ?? 0) + this.offsetX
-				const y = (node.y ?? 0) + this.offsetY
-
-				return `<g
-						fixed="false"
-						style="cursor: pointer;"
-					>
-						<circle
-							class="content--circle"
-							stroke-width="2"
-							fill="${NODE_COLORS[status]}"
-							stroke="black"
-							r="19"
-							data-elementId="${node.value}"
-							cx="${x}"
-							cy="${y}"
-						></circle>
-						<text
-							class="content--text"
-							font-size="14"
-							dy=".35em"
-							text-anchor="middle"
-							stroke-width="1"
-							fill="black"
-							stroke="black"
-							data-elementId="${node.value}"
-							x="${x}"
-							y="${y}"
-							style="user-select: none"
-						>
-							${node.value}
-						</text>
-					</g>`
-			}
-		)
-	}
-
-	#getLinesForRender() {
-		return (
-			[...this.graph.graph.entries()]
-				// eslint-disable-next-line
-				.map(([_, node]) => {
-					return [...node.edges].map(edge => {
-						const adjacentNodeX = edge.adjacentNode.x ?? 0
-						const adjacentNodeY = edge.adjacentNode.y ?? 0
-						const nodeX = node.x ?? 0
-						const nodeY = node.y ?? 0
-
-						const vectorOne = [adjacentNodeX - nodeX, adjacentNodeY - nodeY]
-						const vectorOneProtectionToX = [Math.abs(adjacentNodeX - nodeX), 0]
-
-						const top =
-							vectorOne[0] * vectorOneProtectionToX[0] +
-							vectorOne[1] * vectorOneProtectionToX[1]
-						const bottom =
-							Math.sqrt(vectorOne[0] ** 2 + vectorOne[1] ** 2) *
-							Math.sqrt(
-								vectorOneProtectionToX[0] ** 2 + vectorOneProtectionToX[1] ** 2
-							)
-
-						const arrowRotateDeg = (Math.acos(top / bottom) * 180) / Math.PI
-						const arrowRotateDegWithReflection =
-							vectorOne[1] < 0 ? 360 - arrowRotateDeg : arrowRotateDeg
-
-						const distanceFromCenter = [
-							19 * Math.cos((arrowRotateDegWithReflection * Math.PI) / 180),
-							19 * Math.sin((arrowRotateDegWithReflection * Math.PI) / 180)
-						]
-
-						if (
-							edge.status === 'no-direction' &&
-							this.graph.mode !== 'undirected'
-						)
-							return
-
-						const color =
-							edge.status === 'no-direction' && DEBUG
-								? 'green'
-								: edge.type === 'default'
-								  ? 'black'
-								  : edge.type === 'back'
-								    ? 'lightblue'
-								    : edge.type === 'cross'
-								      ? 'lightgreen'
-								      : 'lightpink'
-
-						const arrow = `<path stroke="${color}" fill="${color}" d="M -15 5.5 L 0 0 L -15 -5.5 Z" transform="translate (${
-							adjacentNodeX + this.offsetX - distanceFromCenter[0]
-						} ${
-							adjacentNodeY + this.offsetY - distanceFromCenter[1]
-						}) rotate(${arrowRotateDegWithReflection})"></path>`
-
-						const textPosition = {
-							x:
-								(nodeX + adjacentNodeX) / 2 +
-								distanceFromCenter[0] +
-								this.offsetX,
-							y:
-								(nodeY + adjacentNodeY) / 2 +
-								distanceFromCenter[1] +
-								this.offsetY
-						}
-
-						const text = `
-							<text x="${textPosition.x}" y="${textPosition.y}" style="stroke:white; stroke-width:0.6em">${edge.weight}</text>
-							<text x="${textPosition.x}" y="${textPosition.y}" style="fill:black">${edge.weight}</text> `
-
-						return `<g>
-							<path
-							class="content--edge"
-								d="M ${nodeX + this.offsetX} ${nodeY + this.offsetY} L ${
-									adjacentNodeX + this.offsetX
-								} ${adjacentNodeY + this.offsetY}"
-								fill="none"
-								stroke-width="2"
-								stroke="${color}"
-							></path>
-							<path
-							class="content--edge"
-							d="M ${nodeX + this.offsetX} ${nodeY + this.offsetY} L ${
-								adjacentNodeX + this.offsetX
-							} ${adjacentNodeY + this.offsetY}"
-								opacity="0" 
-								fill="none"
-								stroke-width="30"
-								stroke="${color}"
-							></path>
-							${this.graph.mode === 'directed' || DEBUG ? arrow : ''}
-							${this.graph.weights ? text : ''}
-						</g>`
-					})
-				})
-				.flat()
-		)
-	}
-
 	render() {
-		const ourNodes = this.#getRenderedCircles()
-		const ourEdges = this.#getLinesForRender()
+		const render = new Render()
 
-		document.querySelector<HTMLDivElement>('#content')!.innerHTML = `
-			<div class="graph__wrapper">
-				<svg
-				width="100%"
-				height="100%"
-				preserveAspectRatio="none"
-				cursor="${this.pressedKeyCode === 'Space' ? 'grabbing' : 'default'}"
-				>
-					<g>
-						<g>
-							${ourEdges.join(' ')}
-						</g>
-						<g>
-							${ourNodes.join(' ')}
-						</g>
-					</g>
-				</svg>
-			</div>
-		`
+		console.log(this)
+
+		render.render(
+			this.graph,
+			this.offsetX,
+			this.offsetY,
+			this.pressedKeyCode,
+			this.currentClickedTarget
+		)
 	}
 
 	initializeApp() {
@@ -1607,16 +1279,20 @@ class App {
 				;(e.target as HTMLElement).classList.add('menu__link--active')
 
 				const activeId = new Date().getTime()
-				this.algorithmActiveId = new Date().getTime()
+				window.algorithmActiveId = new Date().getTime()
 
 				this.#graphNodesStatusResetter(activeId)
 
 				if (targetDataId === 'bfs') {
-					await this.bfsWrapper(activeId)
+					const bfs = new BFS()
+
+					await bfs.bfsWrapper(activeId, this.graph, this.render.bind(this))
 				}
 
 				if (targetDataId === 'dfs') {
-					await this.dfsWrapper(activeId)
+					const dfs = new DFS()
+
+					await dfs.dfsWrapper(activeId, this.graph, this.render.bind(this))
 				}
 
 				;(e.target as HTMLElement).classList.remove('menu__link--active')
@@ -1626,10 +1302,10 @@ class App {
 			}
 
 			if (targetDataId === 'reset') {
-				this.algorithmActiveId = -1
+				window.algorithmActiveId = -1
 
-				this.#graphNodesStatusResetter(this.algorithmActiveId)
-				this.#graphEdgesTypeResetter(this.algorithmActiveId)
+				this.#graphNodesStatusResetter(window.algorithmActiveId)
+				this.#graphEdgesTypeResetter(window.algorithmActiveId)
 				return
 			}
 
@@ -1739,7 +1415,7 @@ class App {
 
 			if (algorithm === 'lb5third') {
 				const activeId = new Date().getTime()
-				this.algorithmActiveId = activeId
+				window.algorithmActiveId = activeId
 
 				// this.#graphNodesStatusResetter(activeId)
 
@@ -1762,7 +1438,7 @@ class App {
 
 			if (algorithm === 'lb5first') {
 				const activeId = new Date().getTime()
-				this.algorithmActiveId = activeId
+				window.algorithmActiveId = activeId
 
 				this.#graphNodesStatusResetter(activeId)
 
@@ -1779,7 +1455,7 @@ class App {
 
 			if (algorithm === 'lb5second') {
 				const activeId = new Date().getTime()
-				this.algorithmActiveId = activeId
+				window.algorithmActiveId = activeId
 
 				this.#graphNodesStatusResetter(activeId)
 
@@ -1796,7 +1472,7 @@ class App {
 
 			if (algorithm === 'lb6one') {
 				const activeId = new Date().getTime()
-				this.algorithmActiveId = activeId
+				window.algorithmActiveId = activeId
 
 				this.#graphNodesStatusResetter(activeId)
 
@@ -1824,7 +1500,7 @@ class App {
 
 			if (algorithm === 'lb6two') {
 				const activeId = new Date().getTime()
-				this.algorithmActiveId = activeId
+				window.algorithmActiveId = activeId
 
 				this.#graphNodesStatusResetter(activeId)
 
@@ -1844,7 +1520,7 @@ class App {
 
 			if (algorithm === 'lb6three') {
 				const activeId = new Date().getTime()
-				this.algorithmActiveId = activeId
+				window.algorithmActiveId = activeId
 
 				this.#graphNodesStatusResetter(activeId)
 
@@ -1899,7 +1575,7 @@ class App {
 			// 	const path: Node[] = []
 
 			// 	const activeId = new Date().getTime()
-			// 	this.algorithmActiveId = activeId
+			// 	window.algorithmActiveId = activeId
 
 			// 	this.#graphNodesStatusResetter(activeId)
 
@@ -1918,7 +1594,7 @@ class App {
 			// 	const path: Node[][] = []
 
 			// 	const activeId = new Date().getTime()
-			// 	this.algorithmActiveId = activeId
+			// 	window.algorithmActiveId = activeId
 
 			// 	this.#graphNodesStatusResetter(activeId)
 
@@ -1942,18 +1618,3 @@ class App {
 const app = new App()
 
 app.initializeApp()
-
-/*
-
-Ориентированный:
-- У нас есть направления по которому мы проходим
-
-Не ориентированый:
-- У нас нет направления и мы можем идти куда хотим
-
-Варианты:
-- Добавить в edges создание не 1 edge, а 2, только у 1 будет status - standart, а у второй - no-direction
-  А при создании из 2 в 1 - заменять у второй с no-direction на `standart`
-	При удалении - изменять на no-direction
-
-*/
