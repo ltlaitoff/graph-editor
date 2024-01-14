@@ -11,6 +11,7 @@ import { BFS } from './algorithms/BFS'
 import { DFS } from './algorithms/DFS'
 import { Dijkstra } from './algorithms/Dijkstra.ts'
 import { BellmanFord } from './algorithms/BellmanFord.ts'
+import { FloydWarshall } from './algorithms/FloydWarshall.ts'
 
 class App {
 	graph: Graph
@@ -659,50 +660,6 @@ class App {
 		// console.log('DFS:', jungle.map(item => item.value).join(', 	'))
 	}
 
-	floydWarshall(nodes: Node[]) {
-		const numNodes = nodes.length
-
-		const distances = Array.from({ length: numNodes }, () =>
-			Array(numNodes).fill(Infinity)
-		)
-
-		nodes.forEach((node, i) => {
-			distances[i][i] = 0
-
-			node.edges.forEach(edge => {
-				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
-					return
-				}
-
-				const j = nodes.indexOf(edge.adjacentNode)
-
-				distances[i][j] = edge.weight
-			})
-		})
-
-		for (let i = 0; i < numNodes; i++) {
-			for (let j = 0; j < numNodes; j++) {
-				for (let k = 0; k < numNodes; k++) {
-					if (distances[j][i] + distances[i][k] < distances[j][k]) {
-						distances[j][k] = distances[j][i] + distances[i][k]
-					}
-				}
-			}
-		}
-
-		nodes.forEach((nodeTop, i) => {
-			nodes.forEach((nodeBottom, j) => {
-				const result = distances[i][j]
-
-				if (result === Infinity) return
-
-				console.log(`${nodeTop.value} => ${nodeBottom.value}: ${result}`)
-			})
-		})
-
-		return distances
-	}
-
 	private initializeGraph() {
 		this.graph.graph = this.graph.createGraph([
 			{ from: '1', to: '9', weight: 1, x: 751, y: 189 },
@@ -1251,7 +1208,8 @@ class App {
 				})
 				console.log('%c⧭', 'color: #731d1d', nodes)
 
-				const result = await this.floydWarshall(nodes)
+				const floydWarshall = new FloydWarshall(this.graph)
+				const result = await floydWarshall.floydWarshall(nodes)
 
 				result.unshift([])
 				result.unshift(nodes.map(node => node.value))
@@ -1285,54 +1243,7 @@ class App {
 					null,
 					2
 				)
-				// .then(async () => {
-				// 	console.log('asdsd')
-				// 	// await sleep(DELAY)
-
-				// 	this.#graphNodesStatusResetter(activeId)
-				// })
 			}
-
-			// if (algorithm === 'find-one-path') {
-			// 	const path: Node[] = []
-
-			// 	const activeId = new Date().getTime()
-			// 	window.algorithmActiveId = activeId
-
-			// 	this.#graphNodesStatusResetter(activeId)
-
-			// 	startNode.status = 'done'
-			// 	endNode.status = 'done'
-
-			// 	this.findPath(startNode, endNode, [], path, activeId).then(async () => {
-			// 		console.log('asdsd')
-			// 		// await sleep(DELAY)
-
-			// 		this.#graphNodesStatusResetter(activeId)
-			// 	})
-			// }
-
-			// if (algorithm === 'find-all-paths') {
-			// 	const path: Node[][] = []
-
-			// 	const activeId = new Date().getTime()
-			// 	window.algorithmActiveId = activeId
-
-			// 	this.#graphNodesStatusResetter(activeId)
-
-			// 	startNode.status = 'done'
-			// 	endNode.status = 'done'
-
-			// 	console.log(
-			// 		await this.findPathes(startNode, endNode, new Set(), path, activeId)
-			// 	)
-
-			// 	await sleep(DELAY)
-
-			// 	this.#graphNodesStatusResetter(activeId)
-
-			// 	console.log(path)
-			// }
 		})
 	}
 }
