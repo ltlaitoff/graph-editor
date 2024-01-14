@@ -51,29 +51,31 @@ class Tree {
 }
 
 export class BFS {
-	async bfsWrapper(id: number, graph: Graph, render: () => void) {
+	graph: Graph
+	render: () => void
+
+	constructor(graph: Graph, render: () => void) {
+		this.graph = graph
+		this.render = render
+	}
+
+	async bfsWrapper(id: number) {
 		const visited: Node[] = []
 
-		for (const item of graph.graph.values()) {
+		for (const item of this.graph.graph.values()) {
 			if (!visited.includes(item)) {
 				if (window.algorithmActiveId !== id) {
 					return
 				}
 
-				await this.bfs(item, visited, id, graph, render)
+				await this.bfs(item, visited, id)
 			}
 		}
 
-		render()
+		this.render()
 	}
 
-	async bfs(
-		node: Node,
-		visited: Node[],
-		id: number,
-		graph: Graph,
-		render: () => void
-	) {
+	async bfs(node: Node, visited: Node[], id: number) {
 		const tree = new Tree(node.value)
 
 		const queue = [node]
@@ -89,7 +91,8 @@ export class BFS {
 			visited.push(item)
 
 			item.edges.forEach(edge => {
-				if (graph.mode === 'directed' && edge.status === 'no-direction') return
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction')
+					return
 
 				const adjacentNode = edge.adjacentNode
 
@@ -105,13 +108,13 @@ export class BFS {
 					status: 'progress',
 					sleep: false
 				},
-				render
+				this.render
 			)
 			await sleep(DELAY)
 		}
 
 		tree.display()
 
-		render()
+		this.render()
 	}
 }

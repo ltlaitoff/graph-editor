@@ -4,29 +4,31 @@ import { DELAY } from '../config/delay.ts'
 import { Graph } from '../models/Graph.ts'
 
 export class DFS {
-	async dfsWrapper(id: number, graph: Graph, render: () => void) {
+	graph: Graph
+	render: () => void
+
+	constructor(graph: Graph, render: () => void) {
+		this.graph = graph
+		this.render = render
+	}
+
+	async dfsWrapper(id: number) {
 		const visited: Node[] = []
 
-		for (const item of graph.graph.values()) {
+		for (const item of this.graph.graph.values()) {
 			if (!visited.includes(item)) {
 				if (window.algorithmActiveId !== id) {
 					return
 				}
 
-				await this.dfs(item, visited, id, graph, render)
+				await this.dfs(item, visited, id)
 			}
 		}
 
-		render()
+		this.render()
 	}
 
-	async dfs(
-		node: Node,
-		visited: Node[],
-		id: number,
-		graph: Graph,
-		render: () => void
-	) {
+	async dfs(node: Node, visited: Node[], id: number) {
 		const jungle: Node[] = []
 		const stack = [node]
 
@@ -41,7 +43,7 @@ export class DFS {
 			visited.push(item)
 			jungle.push(item)
 			;[...item.edges].toReversed().forEach(edge => {
-				if (graph.mode === 'directed' && edge.status === 'no-direction') {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
 					return
 				}
 
@@ -58,13 +60,13 @@ export class DFS {
 					status: 'progress',
 					sleep: false
 				},
-				render
+				this.render
 			)
 
 			await sleep(DELAY)
 		}
 
-		render()
+		this.render()
 
 		console.log('DFS:', jungle.map(item => item.value).join(', 	'))
 	}

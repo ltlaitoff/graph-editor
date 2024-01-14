@@ -1,9 +1,7 @@
 import './style.css'
 import { Graph } from './models/Graph.ts'
-import { Edge } from './models/Edge.ts'
 import { Node } from './models/Node.ts'
 import { DELAY } from './config/delay.ts'
-import words from './data/words.ts'
 import { Render } from './modules/Render.ts'
 
 import { sleep } from './helpers'
@@ -12,6 +10,7 @@ import { DFS } from './algorithms/DFS'
 import { Dijkstra } from './algorithms/Dijkstra.ts'
 import { BellmanFord } from './algorithms/BellmanFord.ts'
 import { FloydWarshall } from './algorithms/FloydWarshall.ts'
+import { NodesByDeepLevel } from './algorithms/NodesByDeepLevel.ts'
 
 class App {
 	graph: Graph
@@ -105,7 +104,6 @@ class App {
 			console.log(this.mouseDownValues.target.dataset.elementid)
 		}
 	}
-
 	onClick(e: MouseEvent) {
 		console.log('click')
 
@@ -269,54 +267,6 @@ class App {
 
 	/* Algorithms */
 
-	async lb5TaskOne(
-		node: Node,
-		visited: Node[],
-		id: number,
-		maxLevel = 2,
-		level = 0
-	) {
-		if (level > maxLevel) return []
-
-		visited.push(node)
-
-		node.status = 'progress'
-
-		this.render()
-
-		await sleep(DELAY)
-
-		const result: (number | null)[] = []
-
-		for (const edge of node.edges) {
-			if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
-				continue
-			}
-
-			if (!visited.includes(edge.adjacentNode)) {
-				if (window.algorithmActiveId !== id) {
-					return
-				}
-
-				const r = await this.lb5TaskOne(
-					edge.adjacentNode,
-					visited,
-					id,
-					maxLevel,
-					level + 1
-				)
-
-				if (r === undefined) {
-					continue
-				}
-
-				result.push(r)
-			}
-		}
-
-		return [node.value, ...result].flat()
-	}
-
 	async lb5TaskSecond(id: number) {
 		const visited: Node[] = []
 		const startTime: Map<Node, number> = new Map()
@@ -394,164 +344,6 @@ class App {
 		}
 
 		return false
-
-		// if (start === end) {
-		// 	paths.push([...visited, start])
-
-		// 	console.log(paths.at(-1))
-		// 	return
-		// }
-
-		// // if (visited.size > 50) {
-		// // 	return
-		// // }
-
-		// visited.add(start)
-
-		// for (const edge of start.edges) {
-		// 	if (!visited.has(edge.adjacentNode)) {
-		// 		this.findPathThird(edge.adjacentNode, end, visited, paths)
-		// 	}
-		// }
-
-		// visited.delete(start)
-	}
-
-	async lb5TaskThird(wordFrom: string = 'abba', wordTo: string = 'alba') {
-		if (wordFrom.length !== wordTo.length) return false
-
-		const wordsWithLenght: string[] = words.filter(
-			word => word.length === wordFrom.length
-		)
-
-		if (wordsWithLenght.includes(wordFrom) === false) return false
-		if (wordsWithLenght.includes(wordTo) === false) return false
-
-		this.lastGraph = 'lb5'
-		this.graph.graph = new Map()
-
-		const newGraph = this.graph
-
-		let x = 0
-		let y = 0
-		const maxRow = 30
-		let row = 0
-
-		wordsWithLenght.forEach(element => {
-			newGraph.addOrGetNode(newGraph.graph, element, x, y)
-			x += 100
-
-			if (row >= maxRow) {
-				y += 100
-				x = 0
-				row = 0
-			}
-
-			row++
-		})
-
-		this.render()
-
-		console.time('Start creating of graph')
-		let passed = 0
-
-		newGraph.graph.forEach(rootNode => {
-			newGraph.graph.forEach(node => {
-				if (rootNode === node) return
-
-				const findedEdge = [...rootNode.edges].find(edge => {
-					return edge.adjacentNode === node
-				})
-				if (findedEdge !== undefined) return
-
-				if (this.compareStrings(rootNode.value, node.value)) {
-					newGraph.toggleEdge(rootNode, node)
-				}
-			})
-
-			passed++
-
-			console.log(
-				`${((passed / wordsWithLenght.length) * 100).toFixed(2)}% passed`
-			)
-		})
-
-		console.timeEnd('Start creating of graph')
-
-		this.render()
-
-		// await sleep(5000)
-
-		const startNode = [...newGraph.graph.values()].find(
-			node => node.value === wordFrom
-		)
-		const endNode = [...newGraph.graph.values()].find(
-			node => node.value === wordTo
-		)
-		if (!startNode || !endNode) return
-
-		console.log('%c⧭', 'color: #733d00', startNode)
-		console.log('%c⧭', 'color: #00bf00', endNode)
-
-		const path = new Map()
-
-		const resultNode = await this.findPathThird(
-			startNode,
-			endNode,
-			new Set(),
-			path
-		)
-
-		console.log(resultNode, path)
-
-		let node = resultNode
-		const path2: Node[] = []
-
-		while (node !== startNode) {
-			console.log(node)
-
-			if (node == undefined || typeof node === 'boolean') {
-				break
-			}
-
-			path2.unshift(node)
-			node = path.get(node)
-		}
-
-		console.log(path2)
-
-		await sleep(3000)
-
-		path2.forEach(item => {
-			item.status = 'progress'
-		})
-
-		startNode.status = 'done'
-		endNode.status = 'done'
-
-		// this.graph.graph = new Map()
-
-		path2.unshift(startNode)
-
-		for (let i = 0; i < path2.length; i++) {
-			const element = path2[i]
-			// this.graph.graph.set(element.value, element)
-
-			const nextElement = path2[i + 1]
-
-			element.edges.clear()
-			if (nextElement) {
-				element.edges.add(new Edge(nextElement, 1))
-			}
-		}
-
-		this.graph.graph.forEach((item, key) => {
-			if (!path2.includes(item) && item !== startNode && item !== endNode) {
-				this.graph.graph.delete(key)
-			}
-		})
-
-		this.render()
 	}
 
 	async lb5TaskSecondInner(
@@ -942,6 +734,8 @@ class App {
 		const formHeading = document.querySelector('.panel__form-heading')
 		const formCodeOutput = document.querySelector('#form-code-output')
 
+		if (!formCodeOutput) return
+
 		mainMenu?.addEventListener('click', async e => {
 			if (!(e.target as HTMLElement).className.includes('menu__link')) return
 
@@ -960,15 +754,13 @@ class App {
 				this.#graphNodesStatusResetter(activeId)
 
 				if (targetDataId === 'bfs') {
-					const bfs = new BFS()
-
-					await bfs.bfsWrapper(activeId, this.graph, this.render.bind(this))
+					const bfsAlgorithm = new BFS(this.graph, this.render.bind(this))
+					await bfsAlgorithm.bfsWrapper(activeId)
 				}
 
 				if (targetDataId === 'dfs') {
-					const dfs = new DFS()
-
-					await dfs.dfsWrapper(activeId, this.graph, this.render.bind(this))
+					const dfsAlgorithm = new DFS(this.graph, this.render.bind(this))
+					await dfsAlgorithm.dfsWrapper(activeId)
 				}
 
 				;(e.target as HTMLElement).classList.remove('menu__link--active')
@@ -1083,58 +875,51 @@ class App {
 
 			formCodeOutput.textContent = ''
 
-			const start = document.querySelector('#panel__form--from')
-			const to = document.querySelector('#panel__form--to')
+			const start = document.querySelector(
+				'#panel__form--from'
+			) as HTMLInputElement
+			const to = document.querySelector('#panel__form--to') as HTMLInputElement
 
-			// @ts-expect-error TODO
-			const algorithm = this.localState.algorithm
-
-			if (algorithm === 'lb5third') {
-				const activeId = new Date().getTime()
-				window.algorithmActiveId = activeId
-
-				// this.#graphNodesStatusResetter(activeId)
-
-				this.lb5TaskThird(start?.value, to?.value)
-				// .then(async value => {
-				// 	console.log(value)
-
-				// 	this.#graphNodesStatusResetter(activeId)
-				// })
-
+			if (
+				!start ||
+				!to ||
+				start.value === undefined ||
+				to.value === undefined
+			) {
 				return
 			}
 
 			// @ts-expect-error TODO
-			const startNode = this.graph.graph.get(start.value)
-			// @ts-expect-error TODO
-			const endNode = this.graph.graph.get(to.value)
+			const algorithm = this.localState.algorithm
 
-			if (!startNode || !endNode) return
+			const activeId = new Date().getTime()
+			window.algorithmActiveId = activeId
+
+			this.#graphNodesStatusResetter(activeId)
+
+			const startNode = start && this.graph.graph.get(start.value)
+			if (!startNode) return
 
 			if (algorithm === 'lb5first') {
-				const activeId = new Date().getTime()
-				window.algorithmActiveId = activeId
-
-				this.#graphNodesStatusResetter(activeId)
-
 				startNode.status = 'done'
 
 				const maxLevel = Number(to?.value) || 2
 
-				this.lb5TaskOne(startNode, [], activeId, maxLevel).then(async value => {
-					console.log(value)
+				const nodesByDeepLevel = new NodesByDeepLevel(
+					this.graph,
+					this.render.bind(this)
+				)
 
-					this.#graphNodesStatusResetter(activeId)
-				})
+				nodesByDeepLevel
+					.getNodesByDeepLevel(startNode, [], activeId, maxLevel)
+					.then(async value => {
+						console.log(value)
+
+						this.#graphNodesStatusResetter(activeId)
+					})
 			}
 
 			if (algorithm === 'lb5second') {
-				const activeId = new Date().getTime()
-				window.algorithmActiveId = activeId
-
-				this.#graphNodesStatusResetter(activeId)
-
 				startNode.status = 'done'
 
 				// const maxLevel = Number(to?.value) || 2
@@ -1147,11 +932,6 @@ class App {
 			}
 
 			if (algorithm === 'lb6one') {
-				const activeId = new Date().getTime()
-				window.algorithmActiveId = activeId
-
-				this.#graphNodesStatusResetter(activeId)
-
 				startNode.status = 'done'
 				this.render()
 
@@ -1176,12 +956,10 @@ class App {
 				}
 			}
 
+			const endNode = to && this.graph.graph.get(to.value)
+			if (!endNode) return
+
 			if (algorithm === 'lb6two') {
-				const activeId = new Date().getTime()
-				window.algorithmActiveId = activeId
-
-				this.#graphNodesStatusResetter(activeId)
-
 				startNode.status = 'done'
 				endNode.status = 'done'
 
@@ -1198,11 +976,6 @@ class App {
 			}
 
 			if (algorithm === 'lb6three') {
-				const activeId = new Date().getTime()
-				window.algorithmActiveId = activeId
-
-				this.#graphNodesStatusResetter(activeId)
-
 				const nodes = Array.from(this.graph.graph.values()).sort((a, b) => {
 					return Number(a.value) - Number(b.value)
 				})
