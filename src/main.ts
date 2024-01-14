@@ -9,6 +9,7 @@ import { Render } from './modules/Render.ts'
 import { sleep } from './helpers'
 import { BFS } from './algorithms/BFS'
 import { DFS } from './algorithms/DFS'
+import { Dijkstra } from './algorithms/Dijkstra.ts'
 
 class App {
 	graph: Graph
@@ -657,123 +658,6 @@ class App {
 		// console.log('DFS:', jungle.map(item => item.value).join(', 	'))
 	}
 
-	/* LB 6 ADS 1 */
-	async initHashTables(
-		start: Node,
-		unprocessedNodes: Set<Node>,
-		timeToNodes: Map<Node, number>
-	) {
-		for (const node of this.graph.graph.values()) {
-			unprocessedNodes.add(node)
-			timeToNodes.set(node, Infinity)
-		}
-
-		timeToNodes.set(start, 0)
-	}
-
-	async getNodeWithMinTime(
-		unprocessedNodes: Set<Node>,
-		timeToNodes: Map<Node, number>
-	) {
-		let nodeWithMinTime: Node | null = null
-
-		let minTime = Infinity
-
-		for (const node of unprocessedNodes) {
-			const time = timeToNodes.get(node)
-
-			if (time !== undefined && time < minTime) {
-				minTime = time
-				nodeWithMinTime = node
-			}
-		}
-
-		return nodeWithMinTime
-	}
-
-	async calculateTimeToEachNode(
-		unprocessedNodes: Set<Node>,
-		timeToNodes: Map<Node, number>
-	) {
-		while (unprocessedNodes.size > 0) {
-			const node = await this.getNodeWithMinTime(unprocessedNodes, timeToNodes)
-
-			if (!node) return
-			if (timeToNodes.get(node) === Infinity) return
-
-			await this.#setNodeStatus(node, {
-				status: 'progress',
-				statusForChange: 'default'
-			})
-
-			for (const edge of node.edges) {
-				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
-					continue
-				}
-
-				const adjacentNode = edge.adjacentNode
-
-				if (unprocessedNodes.has(adjacentNode)) {
-					const nodeTime = timeToNodes.get(node)
-					if (nodeTime === undefined) continue
-
-					const adjacentNodeTime = timeToNodes.get(adjacentNode)
-					if (adjacentNodeTime === undefined) continue
-
-					const timeToCheck = nodeTime + edge.weight
-
-					if (timeToCheck < adjacentNodeTime) {
-						timeToNodes.set(adjacentNode, timeToCheck)
-					}
-				}
-			}
-
-			unprocessedNodes.delete(node)
-		}
-	}
-
-	async getShortestPath(
-		start: Node,
-		end: Node,
-		timeToNodes: Map<Node, number>
-	) {
-		const path = []
-		let node = end
-
-		while (node !== start) {
-			const minTimeToNode = timeToNodes.get(node)
-			path.unshift(node)
-
-			for (const [parent, parentEdge] of node.parents.entries()) {
-				if (timeToNodes.has(parent) === undefined) continue
-
-				const previousNodeFound =
-					Number(parentEdge.weight + (timeToNodes.get(parent) ?? 0)) ===
-					minTimeToNode
-
-				if (previousNodeFound) {
-					timeToNodes.delete(node)
-					node = parent
-					break
-				}
-			}
-		}
-
-		path.unshift(node)
-		return path
-	}
-
-	async dijkstra(start: Node, end: Node) {
-		const unprocessedNodes = new Set<Node>()
-		const timeToNodes = new Map<Node, number>()
-
-		await this.initHashTables(start, unprocessedNodes, timeToNodes)
-		await this.calculateTimeToEachNode(unprocessedNodes, timeToNodes)
-
-		if (timeToNodes.get(end) === Infinity) return null
-		return await this.getShortestPath(start, end, timeToNodes)
-	}
-
 	/* LB 6 2*/
 
 	async bellmanFord(startNode: Node) {
@@ -873,115 +757,6 @@ class App {
 		})
 
 		return distances
-	}
-
-	async findPath(
-		start: Node,
-		end: Node,
-		visited: Node[],
-		path: Node[],
-		id: number
-	) {
-		if (start === end) {
-			path.push(start)
-
-			await this.#setNodeStatus(start, {
-				status: 'done',
-				sleep: false
-			})
-
-			return true
-		}
-
-		visited.push(start)
-
-		await this.#setNodeStatus(start, {
-			status: 'progress'
-		})
-
-		for (const edge of start.edges) {
-			if (window.algorithmActiveId !== id) {
-				return
-			}
-
-			if (!visited.includes(edge.adjacentNode)) {
-				if (await this.findPath(edge.adjacentNode, end, visited, path, id)) {
-					if (window.algorithmActiveId !== id) {
-						return
-					}
-
-					path.push(start)
-
-					await this.#setNodeStatus(start, {
-						status: 'done',
-						sleep: false
-					})
-
-					return true
-				}
-			}
-		}
-
-		if (start.status === 'progress') {
-			start.status = 'passed'
-		}
-
-		this.render()
-	}
-
-	async findPathes(
-		start: Node,
-		end: Node,
-		visited: Set<Node>,
-		paths: Node[][],
-		id: number
-	) {
-		if (start === end) {
-			paths.push([...visited, start])
-
-			paths[paths.length - 1].forEach(item => {
-				item.status = 'done'
-			})
-
-			return
-		}
-
-		visited.add(start)
-
-		await this.#setNodeStatus(start, {
-			status: 'progress'
-		})
-
-		// if (start.status === 'default') {
-		// 	start.status = 'progress'
-		// }
-
-		// await sleep(DELAY)
-
-		// this.render()
-
-		for (const edge of start.edges) {
-			if (window.algorithmActiveId !== id) {
-				return
-			}
-
-			if (!visited.has(edge.adjacentNode)) {
-				await this.findPathes(edge.adjacentNode, end, visited, paths, id)
-			}
-		}
-
-		visited.delete(start)
-
-		await this.#setNodeStatus(start, {
-			status: 'passed',
-			sleep: false,
-			statusForChange: 'progress'
-		})
-
-		// if (start.status === 'progress') {
-		// 	start.status = 'passed'
-		// }
-		// this.render()
 	}
 
 	private initializeGraph() {
@@ -1507,7 +1282,8 @@ class App {
 				startNode.status = 'done'
 				endNode.status = 'done'
 
-				const result = await this.dijkstra(startNode, endNode)
+				const dijkstra = new Dijkstra(this.graph, this.render.bind(this))
+				const result = await dijkstra.dijkstra(startNode, endNode)
 
 				if (result === null) {
 					formCodeOutput.textContent = 'Not found!'
