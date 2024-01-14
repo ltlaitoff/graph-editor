@@ -10,6 +10,7 @@ import { sleep } from './helpers'
 import { BFS } from './algorithms/BFS'
 import { DFS } from './algorithms/DFS'
 import { Dijkstra } from './algorithms/Dijkstra.ts'
+import { BellmanFord } from './algorithms/BellmanFord.ts'
 
 class App {
 	graph: Graph
@@ -658,63 +659,6 @@ class App {
 		// console.log('DFS:', jungle.map(item => item.value).join(', 	'))
 	}
 
-	/* LB 6 2*/
-
-	async bellmanFord(startNode: Node) {
-		const distances = new Map<Node, number>()
-
-		for (const node of this.graph.graph.values()) {
-			distances.set(node, Infinity)
-		}
-
-		distances.set(startNode, 0)
-
-		for (let i = 0; i < this.graph.graph.size; i++) {
-			for (const currentNode of [...this.graph.graph.values()]) {
-				if (currentNode === startNode) {
-					continue
-				}
-
-				for (const edge of currentNode.edges) {
-					if (
-						this.graph.mode === 'directed' &&
-						edge.status === 'no-direction'
-					) {
-						continue
-					}
-
-					const newDistance = distances.get(currentNode)! + edge.weight
-
-					if (newDistance < distances.get(edge.adjacentNode)!) {
-						distances.set(edge.adjacentNode, newDistance)
-					}
-				}
-			}
-		}
-
-		for (const currentNode of this.graph.graph.values()) {
-			if (currentNode === startNode) {
-				continue
-			}
-
-			for (const edge of currentNode.edges) {
-				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
-					continue
-				}
-
-				if (
-					distances.get(currentNode)! + edge.weight <
-					distances.get(edge.adjacentNode)!
-				) {
-					console.error('Graph contains a negative cycle.')
-					return
-				}
-			}
-		}
-
-		return distances
-	}
-
 	floydWarshall(nodes: Node[]) {
 		const numNodes = nodes.length
 
@@ -1254,7 +1198,9 @@ class App {
 				startNode.status = 'done'
 				this.render()
 
-				const distances = await this.bellmanFord(startNode)
+				const bellmanFord = new BellmanFord(this.graph)
+
+				const distances = await bellmanFord.bellmanFord(startNode)
 
 				if (distances) {
 					const result = [...distances.entries()].reduce(
