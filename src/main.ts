@@ -11,6 +11,7 @@ import { Dijkstra } from './algorithms/Dijkstra.ts'
 import { BellmanFord } from './algorithms/BellmanFord.ts'
 import { FloydWarshall } from './algorithms/FloydWarshall.ts'
 import { NodesByDeepLevel } from './algorithms/NodesByDeepLevel.ts'
+import { DEFAULT_PRESET, MINUS_WEIGHTS_PRESET, WEIGHTS_PRESET } from './presets'
 
 class App {
 	graph: Graph
@@ -37,8 +38,7 @@ class App {
 
 	constructor() {
 		this.graph = new Graph()
-		// this.initializeGraph()
-		this.initializeGraphForLB61()
+		this.initializeGraph('weight')
 		this.render()
 	}
 
@@ -452,52 +452,27 @@ class App {
 		// console.log('DFS:', jungle.map(item => item.value).join(', 	'))
 	}
 
-	private initializeGraph() {
-		this.graph.graph = this.graph.createGraph([
-			{ from: '1', to: '9', weight: 1, x: 751, y: 189 },
-			{ from: '1', to: '2', weight: 1, x: 751, y: 189 },
-			{ from: '1', to: '3', weight: 1, x: 751, y: 189 },
-			{ from: '1', to: '4', weight: 1, x: 751, y: 189 },
-			{ from: '2', to: '5', weight: 1, x: 516, y: 335 },
-			{ from: '2', to: '6', weight: 1, x: 516, y: 335 },
-			{
-				from: '3',
-				to: '7',
-				weight: 1,
-				x: 691,
-				y: 372
-			},
-			{
-				from: '3',
-				to: '8',
-				weight: 1,
-				x: 691,
-				y: 372
-			},
-			{ from: '4', to: '9', weight: 1, x: 1020, y: 336 },
-			{ from: '4', to: '10', weight: 1, x: 1020, y: 336 },
-			{ from: '5', to: '', weight: 1, x: 390, y: 508 },
-			{
-				from: '6',
-				to: '11',
-				weight: 1,
-				x: 564,
-				y: 511
-			},
-			{ from: '7', to: '11', weight: 1, x: 681, y: 502 },
-			{ from: '8', to: '1', weight: 1, x: 855, y: 494 },
-			{ from: '9', to: '12', weight: 1, x: 961, y: 492 },
-			{ from: '10', to: '', weight: 1, x: 1136, y: 484 },
-			{
-				from: '11',
-				to: '13',
-				weight: 1,
-				x: 622,
-				y: 657
-			},
-			{ from: '12', to: '', weight: 1, x: 1002, y: 646 },
-			{ from: '13', to: '12', weight: 1, x: 813, y: 649 }
-		])
+	private initializeGraph(
+		type: 'default' | 'weight' | 'minus-weight' = 'default'
+	) {
+		let graphData = []
+
+		switch (type) {
+			case 'default': {
+				graphData = DEFAULT_PRESET
+				break
+			}
+			case 'weight': {
+				graphData = WEIGHTS_PRESET
+				break
+			}
+			case 'minus-weight': {
+				graphData = MINUS_WEIGHTS_PRESET
+				break
+			}
+		}
+
+		this.graph.graph = this.graph.createGraph(graphData)
 	}
 
 	render() {
@@ -515,11 +490,11 @@ class App {
 	}
 
 	initializeApp() {
-		this.#initilizeUserEvents()
+		this.#initializeUserEvents()
 		this.#initilizeMenu()
 	}
 
-	#initilizeUserEvents() {
+	#initializeUserEvents() {
 		document.addEventListener('mousedown', (e: MouseEvent) =>
 			this.onMouseDown(e)
 		)
@@ -549,182 +524,6 @@ class App {
 				activeElement: HTMLElement
 		  } = {
 		opened: false
-	}
-
-	initializeGraphForLB61() {
-		this.graph.graph = this.graph.createGraph([
-			{ from: '1', to: '6', weight: 22, x: 500, y: 500 },
-			{ from: '1', to: '5', weight: 31, x: 500, y: 500 },
-			{ from: '1', to: '4', weight: 31, x: 500, y: 500 },
-			{ from: '1', to: '3', weight: 52, x: 500, y: 500 },
-			{
-				from: '2',
-				to: '9',
-				weight: 37,
-				x: 494,
-				y: 216
-			},
-			{
-				from: '3',
-				to: '2',
-				weight: 52,
-				x: 984,
-				y: 336
-			},
-			{
-				from: '3',
-				to: '9',
-				weight: 89,
-				x: 984,
-				y: 336
-			},
-			{
-				from: '3',
-				to: '4',
-				weight: 52,
-				x: 984,
-				y: 336
-			},
-			{
-				from: '4',
-				to: '2',
-				weight: 13,
-				x: 668,
-				y: 346
-			},
-			{
-				from: '5',
-				to: '6',
-				weight: 65,
-				x: 123,
-				y: 333
-			},
-			{
-				from: '5',
-				to: '2',
-				weight: 73,
-				x: 123,
-				y: 333
-			},
-			{
-				from: '6',
-				to: '4',
-				weight: 68,
-				x: 396,
-				y: 338
-			},
-			{
-				from: '6',
-				to: '2',
-				weight: 40,
-				x: 396,
-				y: 338
-			},
-			{ from: '7', to: '', weight: 18, x: 633, y: 6, status: 'default' },
-			{
-				from: '8',
-				to: '',
-				weight: 81,
-				x: 888,
-				y: 70
-			},
-			{
-				from: '9',
-				to: '',
-				weight: 60,
-				x: 800,
-				y: 214
-			}
-		])
-		this.render()
-	}
-
-	initializeGraphForLB62() {
-		this.graph.graph = this.graph.createGraph([
-			{ from: '1', to: '6', weight: 22, x: 500, y: 500 },
-			{ from: '1', to: '5', weight: -31, x: 500, y: 500 },
-			{ from: '1', to: '4', weight: -31, x: 500, y: 500 },
-			{ from: '1', to: '3', weight: 52, x: 500, y: 500 },
-			{
-				from: '2',
-				to: '9',
-				weight: 37,
-				x: 494,
-				y: 216
-			},
-			{
-				from: '3',
-				to: '2',
-				weight: -52,
-				x: 984,
-				y: 336
-			},
-			{
-				from: '3',
-				to: '9',
-				weight: 89,
-				x: 984,
-				y: 336
-			},
-			{
-				from: '3',
-				to: '4',
-				weight: -52,
-				x: 984,
-				y: 336
-			},
-			{
-				from: '4',
-				to: '2',
-				weight: 13,
-				x: 668,
-				y: 346
-			},
-			{
-				from: '5',
-				to: '6',
-				weight: -65,
-				x: 123,
-				y: 333
-			},
-			{
-				from: '5',
-				to: '2',
-				weight: 73,
-				x: 123,
-				y: 333
-			},
-			{
-				from: '6',
-				to: '4',
-				weight: 68,
-				x: 396,
-				y: 338
-			},
-			{
-				from: '6',
-				to: '2',
-				weight: -40,
-				x: 396,
-				y: 338
-			},
-			{ from: '7', to: '', weight: 18, x: 633, y: 6, status: 'default' },
-			{
-				from: '8',
-				to: '',
-				weight: 81,
-				x: 888,
-				y: 70
-			},
-			{
-				from: '9',
-				to: '',
-				weight: 60,
-				x: 800,
-				y: 214
-			}
-		])
-		this.render()
 	}
 
 	#initilizeMenu() {
@@ -792,7 +591,7 @@ class App {
 			if (targetDataId === 'change_graph') {
 				if (this.lastGraph === 'default') {
 					// lb61
-					this.initializeGraphForLB61()
+					this.initializeGraph('weight')
 					;(e.target as HTMLElement).textContent = 'lb61'
 					this.lastGraph = 'lb61'
 					this.render()
@@ -808,7 +607,7 @@ class App {
 				}
 
 				if (this.lastGraph === 'lb61') {
-					this.initializeGraphForLB62()
+					this.initializeGraph('minus-weight')
 					this.lastGraph = 'lb62'
 					;(e.target as HTMLElement).textContent = 'lb62'
 					this.render()
