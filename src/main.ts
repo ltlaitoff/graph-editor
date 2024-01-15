@@ -4,7 +4,7 @@ import { Node } from './models/Node.ts'
 import { DELAY } from './config/delay.ts'
 import { Render } from './modules/Render.ts'
 
-import { sleep } from './helpers'
+import { setNodeStatus, sleep } from './helpers'
 import { BFS } from './algorithms/BFS'
 import { DFS } from './algorithms/DFS'
 import { Dijkstra } from './algorithms/Dijkstra.ts'
@@ -12,6 +12,7 @@ import { BellmanFord } from './algorithms/BellmanFord.ts'
 import { FloydWarshall } from './algorithms/FloydWarshall.ts'
 import { NodesByDeepLevel } from './algorithms/NodesByDeepLevel.ts'
 import { DEFAULT_PRESET, MINUS_WEIGHTS_PRESET, WEIGHTS_PRESET } from './presets'
+import { Menu, MenuItem } from './modules/Menu.ts'
 
 class App {
 	graph: Graph
@@ -202,10 +203,6 @@ class App {
 		this.render()
 	}
 
-	// #nodeStatusChanger(node: Node, newStatus: 'default' | 'progress' | 'done') {
-	// 	node.status = newStatus
-	// }
-
 	#graphNodesStatusResetter(id: number) {
 		if (window.algorithmActiveId !== id) return
 
@@ -230,39 +227,6 @@ class App {
 		})
 
 		this.render()
-	}
-
-	async #setNodeStatus(
-		node: Node,
-		params: {
-			status?: Node['status']
-			sleep?: boolean
-			render?: boolean
-			statusForChange?: Node['status'] | 'any'
-			renderBeforeSleep?: boolean
-		} = {}
-	) {
-		const status = params.status ?? 'default'
-		const sleepFlag = params.sleep ?? true
-		const render = params.render ?? true
-		const statusForChange = params.statusForChange ?? node.status
-		const renderBeforeSleep = params.renderBeforeSleep ?? false
-
-		if (statusForChange && statusForChange === node.status) {
-			node.status = status
-		}
-
-		if (render && renderBeforeSleep) {
-			this.render()
-		}
-
-		if (sleepFlag) {
-			await sleep(DELAY)
-		}
-
-		if (render && !renderBeforeSleep) {
-			this.render()
-		}
 	}
 
 	/* Algorithms */
@@ -440,10 +404,14 @@ class App {
 		endTime.set(node, state.time)
 		state.time++
 
-		await this.#setNodeStatus(node, {
-			status: 'progress',
-			sleep: false
-		})
+		await setNodeStatus(
+			node,
+			{
+				status: 'progress',
+				sleep: false
+			},
+			this.render.bind(this)
+		)
 
 		await sleep(DELAY)
 
@@ -526,7 +494,67 @@ class App {
 		opened: false
 	}
 
+	async #algotihmWrapper(callback: () => Promise<void>) {
+		window.algorithmActiveId = new Date().getTime()
+
+		this.#graphNodesStatusResetter(window.algorithmActiveId)
+
+		await callback()
+
+		this.#graphNodesStatusResetter(window.algorithmActiveId)
+	}
+
 	#initilizeMenu() {
+		const menu = new Menu()
+
+		const bfsElement = new MenuItem(
+			'bfs',
+			async () => {
+				this.#algotihmWrapper(async () => {
+					const bfsAlgorithm = new BFS(this.graph, this.render.bind(this))
+					await bfsAlgorithm.bfsWrapper(window.algorithmActiveId)
+				})
+			},
+			true
+		)
+
+		const dfsElement = new MenuItem(
+			'dfs',
+			async () => {
+				this.#algotihmWrapper(async () => {
+					const dfsAlgorithm = new DFS(this.graph, this.render.bind(this))
+					await dfsAlgorithm.dfsWrapper(window.algorithmActiveId)
+				})
+			},
+			true
+		)
+
+		const resetElement = new MenuItem('reset', async () => {
+			window.algorithmActiveId = -1
+
+			this.#graphNodesStatusResetter(window.algorithmActiveId)
+			this.#graphEdgesTypeResetter(window.algorithmActiveId)
+		})
+
+		const modeElement = new MenuItem('directed', async target => {
+			if (this.graph.mode === 'directed') {
+				this.graph.mode = 'undirected'
+			} else {
+				this.graph.mode = 'directed'
+			}
+
+			target.textContent = this.graph.mode
+			this.render()
+			return
+		})
+
+		menu.addItem(bfsElement)
+		menu.addItem(dfsElement)
+		menu.addItem(resetElement)
+		menu.addItem(modeElement)
+
+		menu.render()
+
 		const mainMenu = document.querySelector('#main-menu')
 		const panel = document.querySelector('#panel')
 		const form = document.querySelector('#form')
@@ -541,50 +569,6 @@ class App {
 			const targetDataId = (e.target as HTMLElement).dataset.id
 
 			if (!targetDataId) {
-				return
-			}
-
-			if (targetDataId === 'bfs' || targetDataId === 'dfs') {
-				;(e.target as HTMLElement).classList.add('menu__link--active')
-
-				const activeId = new Date().getTime()
-				window.algorithmActiveId = new Date().getTime()
-
-				this.#graphNodesStatusResetter(activeId)
-
-				if (targetDataId === 'bfs') {
-					const bfsAlgorithm = new BFS(this.graph, this.render.bind(this))
-					await bfsAlgorithm.bfsWrapper(activeId)
-				}
-
-				if (targetDataId === 'dfs') {
-					const dfsAlgorithm = new DFS(this.graph, this.render.bind(this))
-					await dfsAlgorithm.dfsWrapper(activeId)
-				}
-
-				;(e.target as HTMLElement).classList.remove('menu__link--active')
-				this.#graphNodesStatusResetter(activeId)
-
-				return
-			}
-
-			if (targetDataId === 'reset') {
-				window.algorithmActiveId = -1
-
-				this.#graphNodesStatusResetter(window.algorithmActiveId)
-				this.#graphEdgesTypeResetter(window.algorithmActiveId)
-				return
-			}
-
-			if (targetDataId === 'mode') {
-				if (this.graph.mode === 'directed') {
-					this.graph.mode = 'undirected'
-				} else {
-					this.graph.mode = 'directed'
-				}
-
-				;(e.target as HTMLElement).textContent = this.graph.mode[0]
-				this.render()
 				return
 			}
 
