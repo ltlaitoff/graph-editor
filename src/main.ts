@@ -599,10 +599,6 @@ class App {
 			}
 
 			const deepForm = new Form('Deep level', async data => {
-				if (data.startNodeId === undefined || data.endNodeId === undefined) {
-					return
-				}
-
 				const startNode = this.graph.graph.get(data.startNodeId)
 				if (!startNode || data.endNodeId === undefined) return
 
@@ -644,10 +640,6 @@ class App {
 			}
 
 			const deepForm = new Form('IDK-1', async data => {
-				if (data.startNodeId === undefined) {
-					return
-				}
-
 				const startNode = this.graph.graph.get(data.startNodeId)
 				if (!startNode) return
 
@@ -678,10 +670,6 @@ class App {
 			}
 
 			const bellmanFordForm = new Form('Bellman Ford', async data => {
-				if (data.startNodeId === undefined) {
-					return
-				}
-
 				const startNode = this.graph.graph.get(data.startNodeId)
 				if (!startNode) return
 
@@ -727,10 +715,6 @@ class App {
 			}
 
 			const dijkstraForm = new Form('Dijkstra', async data => {
-				if (data.startNodeId === undefined || data.endNodeId === undefined) {
-					return
-				}
-
 				const startNode = this.graph.graph.get(data.startNodeId)
 				const endNode = this.graph.graph.get(data.endNodeId)
 
