@@ -1,10 +1,9 @@
 import './style.css'
-import { Graph } from './models/Graph.ts'
 import { Node } from './models/Node.ts'
 import { DELAY } from './config/delay.ts'
 import { Render } from './modules/Render.ts'
 
-import { setNodeStatus, sleep } from './helpers'
+import { resetActiveId, setNodeStatus, sleep } from './helpers'
 import { BFS } from './algorithms/BFS'
 import { DFS } from './algorithms/DFS'
 import { Dijkstra } from './algorithms/Dijkstra.ts'
@@ -13,10 +12,12 @@ import { FloydWarshall } from './algorithms/FloydWarshall.ts'
 import { NodesByDeepLevel } from './algorithms/NodesByDeepLevel.ts'
 import { DEFAULT_PRESET, MINUS_WEIGHTS_PRESET, WEIGHTS_PRESET } from './presets'
 import { Menu, MenuItem } from './modules/Menu.ts'
+import { Graph } from './models/Graph.ts'
+import { SidePanel } from './modules/Panel.ts'
+import { Form } from './modules/Form.ts'
 
 class App {
 	graph: Graph
-
 	offsetX = 0
 	offsetY = -105
 	lastGraph: 'default' | 'lb5' | 'lb61' | 'lb62' = 'default'
@@ -495,7 +496,7 @@ class App {
 	}
 
 	async #algotihmWrapper(callback: () => Promise<void>) {
-		window.algorithmActiveId = new Date().getTime()
+		resetActiveId()
 
 		this.#graphNodesStatusResetter(window.algorithmActiveId)
 
@@ -545,178 +546,147 @@ class App {
 
 			target.textContent = this.graph.mode
 			this.render()
-			return
 		})
 
-		menu.addItem(bfsElement)
-		menu.addItem(dfsElement)
-		menu.addItem(resetElement)
-		menu.addItem(modeElement)
-
-		menu.render()
-
-		const mainMenu = document.querySelector('#main-menu')
-		const panel = document.querySelector('#panel')
-		const form = document.querySelector('#form')
-		const formHeading = document.querySelector('.panel__form-heading')
-		const formCodeOutput = document.querySelector('#form-code-output')
-
-		if (!formCodeOutput) return
-
-		mainMenu?.addEventListener('click', async e => {
-			if (!(e.target as HTMLElement).className.includes('menu__link')) return
-
-			const targetDataId = (e.target as HTMLElement).dataset.id
-
-			if (!targetDataId) {
-				return
+		const changeGraphElement = new MenuItem('d', async target => {
+			if (this.lastGraph === 'default') {
+				this.initializeGraph('weight')
+				target.textContent = 'lb61'
+				this.lastGraph = 'lb61'
 			}
 
-			if (targetDataId === 'change_graph') {
-				if (this.lastGraph === 'default') {
-					// lb61
-					this.initializeGraph('weight')
-					;(e.target as HTMLElement).textContent = 'lb61'
-					this.lastGraph = 'lb61'
-					this.render()
-					return
-				}
-
-				if (this.lastGraph === 'lb5') {
-					this.initializeGraph()
-					this.lastGraph = 'default'
-					;(e.target as HTMLElement).textContent = 'd'
-					this.render()
-					return
-				}
-
-				if (this.lastGraph === 'lb61') {
-					this.initializeGraph('minus-weight')
-					this.lastGraph = 'lb62'
-					;(e.target as HTMLElement).textContent = 'lb62'
-					this.render()
-					return
-				}
-
-				if (this.lastGraph === 'lb62') {
-					this.initializeGraph()
-					this.lastGraph = 'default'
-					;(e.target as HTMLElement).textContent = 'd'
-					this.render()
-					return
-				}
-
-				return
+			if (this.lastGraph === 'lb5') {
+				this.initializeGraph()
+				this.lastGraph = 'default'
+				target.textContent = 'd'
 			}
 
-			if (targetDataId === 'weight') {
-				if (this.graph.weights === true) {
-					this.graph.weights = false
-				} else {
-					this.graph.weights = true
-				}
-
-				;(e.target as HTMLElement).textContent = this.graph.weights ? 'w' : 'nw'
-
-				this.render()
-				return
+			if (this.lastGraph === 'lb61') {
+				this.initializeGraph('minus-weight')
+				this.lastGraph = 'lb62'
+				target.textContent = 'lb62'
 			}
 
-			if (this.localState.opened) {
-				if (this.localState.algorithm === targetDataId) {
-					panel?.classList.remove('panel--opened')
-					;(e.target as HTMLElement).classList.remove('menu__link--active')
+			if (this.lastGraph === 'lb62') {
+				this.initializeGraph()
+				this.lastGraph = 'default'
+				target.textContent = 'd'
+			}
 
-					this.localState = {
-						opened: false
-					}
-				} else {
-					this.localState.algorithm = targetDataId
-					;(e.target as HTMLElement).classList.add('menu__link--active')
-					this.localState.activeElement.classList.remove('menu__link--active')
+			this.render()
+		})
 
-					this.localState.activeElement = e.target as HTMLElement
-				}
+		const weightElement = new MenuItem('w', async target => {
+			if (this.graph.weights === true) {
+				this.graph.weights = false
 			} else {
-				panel?.classList.add('panel--opened')
-				;(e.target as HTMLElement).classList.add('menu__link--active')
-
-				this.localState = {
-					opened: true,
-					algorithm: targetDataId,
-					activeElement: e.target as HTMLElement
-				}
+				this.graph.weights = true
 			}
 
-			if (formHeading) {
-				formHeading.textContent = targetDataId
-			}
+			target.textContent = this.graph.weights ? 'w' : 'nw'
+
+			this.render()
 		})
 
-		form?.addEventListener('submit', async e => {
-			e.preventDefault()
+		const sidePanel = new SidePanel('panel')
 
-			formCodeOutput.textContent = ''
+		const deepElement = new MenuItem('deep', async () => {
+			const FORM_KEY = 'deep'
 
-			const start = document.querySelector(
-				'#panel__form--from'
-			) as HTMLInputElement
-			const to = document.querySelector('#panel__form--to') as HTMLInputElement
-
-			if (
-				!start ||
-				!to ||
-				start.value === undefined ||
-				to.value === undefined
-			) {
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
 				return
 			}
 
-			// @ts-expect-error TODO
-			const algorithm = this.localState.algorithm
+			const deepForm = new Form('Deep level', async data => {
+				if (data.startNodeId === undefined || data.endNodeId === undefined) {
+					return
+				}
 
-			const activeId = new Date().getTime()
-			window.algorithmActiveId = activeId
+				const startNode = this.graph.graph.get(data.startNodeId)
+				if (!startNode || data.endNodeId === undefined) return
 
-			this.#graphNodesStatusResetter(activeId)
-
-			const startNode = start && this.graph.graph.get(start.value)
-			if (!startNode) return
-
-			if (algorithm === 'lb5first') {
+				resetActiveId()
 				startNode.status = 'done'
 
-				const maxLevel = Number(to?.value) || 2
+				const maxLevel = Number(data.endNodeId) || 2
 
 				const nodesByDeepLevel = new NodesByDeepLevel(
 					this.graph,
 					this.render.bind(this)
 				)
 
-				nodesByDeepLevel
-					.getNodesByDeepLevel(startNode, [], activeId, maxLevel)
-					.then(async value => {
-						console.log(value)
+				const value = await nodesByDeepLevel.getNodesByDeepLevel(
+					startNode,
+					[],
+					window.algorithmActiveId,
+					maxLevel
+				)
 
-						this.#graphNodesStatusResetter(activeId)
-					})
+				console.log(value)
+
+				this.#graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			deepForm.addInput('startNodeId', 'Start node id:')
+			deepForm.addInput('endNodeId', 'Deep level:')
+
+			sidePanel.renderForm(deepForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		const idk1Element = new MenuItem('idk-1', async () => {
+			const FORM_KEY = 'idk-1'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
 			}
 
-			if (algorithm === 'lb5second') {
+			const deepForm = new Form('IDK-1', async data => {
+				if (data.startNodeId === undefined) {
+					return
+				}
+
+				const startNode = this.graph.graph.get(data.startNodeId)
+				if (!startNode) return
+
+				resetActiveId()
 				startNode.status = 'done'
+				// TODO: Add checkbox auto reset
+				// TODO: Add use node in algorithm
+				const value = await this.lb5TaskSecond(window.algorithmActiveId)
 
-				// const maxLevel = Number(to?.value) || 2
+				console.log(value)
 
-				this.lb5TaskSecond(activeId).then(async value => {
-					console.log(value)
+				this.#graphEdgesTypeResetter(window.algorithmActiveId)
+				this.#graphNodesStatusResetter(window.algorithmActiveId)
+			})
 
-					this.#graphNodesStatusResetter(activeId)
-				})
+			deepForm.addInput('startNodeId', 'Start node id:')
+
+			sidePanel.renderForm(deepForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		const bellmanFordElement = new MenuItem('bellmanFord', async () => {
+			const FORM_KEY = 'bellmanFord'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
 			}
 
-			if (algorithm === 'lb6one') {
+			const bellmanFordForm = new Form('Bellman Ford', async data => {
+				if (data.startNodeId === undefined) {
+					return
+				}
+
+				const startNode = this.graph.graph.get(data.startNodeId)
+				if (!startNode) return
+
+				resetActiveId()
 				startNode.status = 'done'
-				this.render()
 
 				const bellmanFord = new BellmanFord(this.graph)
 
@@ -733,32 +703,77 @@ class App {
 						{}
 					)
 
-					formCodeOutput.textContent = JSON.stringify(result, null, 2)
+					console.log(result)
+					// 					formCodeOutput.textContent = JSON.stringify(result, null, 2)
 				} else {
 					console.log('Paths not found')
 				}
+
+				this.#graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			bellmanFordForm.addInput('startNodeId', 'Start node id:')
+
+			sidePanel.renderForm(bellmanFordForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		const dijkstraElement = new MenuItem('dijkstra', async () => {
+			const FORM_KEY = 'dijkstra'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
 			}
 
-			const endNode = to && this.graph.graph.get(to.value)
-			if (!endNode) return
+			const dijkstraForm = new Form('Dijkstra', async data => {
+				if (data.startNodeId === undefined || data.endNodeId === undefined) {
+					return
+				}
 
-			if (algorithm === 'lb6two') {
+				const startNode = this.graph.graph.get(data.startNodeId)
+				const endNode = this.graph.graph.get(data.endNodeId)
+
+				if (!startNode || !endNode) return
+
+				resetActiveId()
+
 				startNode.status = 'done'
 				endNode.status = 'done'
 
 				const dijkstra = new Dijkstra(this.graph, this.render.bind(this))
 				const result = await dijkstra.dijkstra(startNode, endNode)
 
+				console.log(result)
 				if (result === null) {
-					formCodeOutput.textContent = 'Not found!'
+					// 	formCodeOutput.textContent = 'Not found!'
 				} else {
-					formCodeOutput.textContent = result
-						?.map(item => item.value)
-						.join(' -> ')
+					// 	formCodeOutput.textContent = result
+					// 	?.map(item => item.value)
+					// 						.join(' -> ')
 				}
+
+				this.#graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			dijkstraForm.addInput('startNodeId', 'Start node id:')
+			dijkstraForm.addInput('endNodeId', 'End node id:')
+
+			sidePanel.renderForm(dijkstraForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		const floydWarshallElement = new MenuItem('floydWarshall', async () => {
+			const FORM_KEY = 'floydWarshall'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
 			}
 
-			if (algorithm === 'lb6three') {
+			const floydWarshallForm = new Form('Floyd Warshall', async () => {
+				resetActiveId()
+
 				const nodes = Array.from(this.graph.graph.values()).sort((a, b) => {
 					return Number(a.value) - Number(b.value)
 				})
@@ -770,7 +785,7 @@ class App {
 				result.unshift([])
 				result.unshift(nodes.map(node => node.value))
 
-				formCodeOutput.textContent = JSON.stringify(
+				const text = JSON.stringify(
 					[
 						...result.map(item => {
 							const tmp: string[] = []
@@ -799,8 +814,29 @@ class App {
 					null,
 					2
 				)
-			}
+
+				console.log(text)
+
+				this.#graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			sidePanel.renderForm(floydWarshallForm.getForRender(), FORM_KEY)
+			sidePanel.open()
 		})
+
+		menu.addItem(bfsElement)
+		menu.addItem(dfsElement)
+		menu.addItem(resetElement)
+		menu.addItem(modeElement)
+		menu.addItem(changeGraphElement)
+		menu.addItem(weightElement)
+		menu.addItem(deepElement)
+		menu.addItem(idk1Element)
+		menu.addItem(bellmanFordElement)
+		menu.addItem(dijkstraElement)
+		menu.addItem(floydWarshallElement)
+
+		menu.render()
 	}
 }
 
