@@ -704,9 +704,9 @@ class App {
 					)
 
 					console.log(result)
-					// 					formCodeOutput.textContent = JSON.stringify(result, null, 2)
+					bellmanFordForm.renderCustomOutput(JSON.stringify(result, null, 2))
 				} else {
-					console.log('Paths not found')
+					bellmanFordForm.renderCustomOutput('Paths not found')
 				}
 
 				this.#graphNodesStatusResetter(window.algorithmActiveId)
@@ -746,11 +746,11 @@ class App {
 
 				console.log(result)
 				if (result === null) {
-					// 	formCodeOutput.textContent = 'Not found!'
+					dijkstraForm.renderCustomOutput('Not found!')
 				} else {
-					// 	formCodeOutput.textContent = result
-					// 	?.map(item => item.value)
-					// 						.join(' -> ')
+					dijkstraForm.renderCustomOutput(
+						result?.map(item => item.value).join(' -> ')
+					)
 				}
 
 				this.#graphNodesStatusResetter(window.algorithmActiveId)
@@ -815,7 +815,7 @@ class App {
 					2
 				)
 
-				console.log(text)
+				floydWarshallForm.renderCustomOutput(text)
 
 				this.#graphNodesStatusResetter(window.algorithmActiveId)
 			})

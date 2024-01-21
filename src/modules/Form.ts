@@ -6,6 +6,7 @@ export class Form {
 	inputs: HTMLElement[] = []
 	title: string
 	callback: (value: Record<string, string>) => void
+	customOutput: HTMLElement | null = null
 
 	constructor(
 		title: string,
@@ -36,6 +37,18 @@ export class Form {
 		this.inputs.push(label)
 	}
 
+	renderCustomOutput = (child: HTMLElement | string) => {
+		if (!this.customOutput) return
+
+		if (typeof child === 'string') {
+			this.customOutput.innerHTML = child
+			return
+		}
+
+		this.customOutput.innerHTML = ''
+		this.customOutput.append(child)
+	}
+
 	getForRender() {
 		const form = document.createElement('form')
 		form.className = 'panel__form'
@@ -51,7 +64,13 @@ export class Form {
 		button.textContent = 'Run'
 		button.className = 'panel__form-button'
 
+		const customOutput = document.createElement('pre')
+		customOutput.className = 'div'
+
+		this.customOutput = customOutput
+
 		form.append(button)
+		form.append(customOutput)
 
 		form.onsubmit = e => {
 			e.preventDefault()
