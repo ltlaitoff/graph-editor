@@ -1,9 +1,7 @@
 import './style.css'
-import { Node } from './models/Node.ts'
-import { DELAY } from './config/delay.ts'
 import { Render } from './modules/Render.ts'
 
-import { resetActiveId, setNodeStatus, sleep } from './helpers'
+import { resetActiveId } from './helpers'
 import { BFS } from './algorithms/BFS'
 import { DFS } from './algorithms/DFS'
 import { Dijkstra } from './algorithms/Dijkstra.ts'
@@ -15,12 +13,12 @@ import { Menu, MenuItem } from './modules/Menu.ts'
 import { Graph } from './models/Graph.ts'
 import { SidePanel } from './modules/Panel.ts'
 import { Form } from './modules/Form.ts'
+import { EdgesTypes } from './algorithms/EdgesTypes.ts'
 
-class App {
+class UserInteractionManager {
 	graph: Graph
 	offsetX = 0
 	offsetY = -105
-	lastGraph: 'default' | 'lb5' | 'lb61' | 'lb62' = 'default'
 
 	mouseDownValues: {
 		active: boolean
@@ -38,9 +36,8 @@ class App {
 
 	pressedKeyCode: string | null = null
 
-	constructor() {
-		this.graph = new Graph()
-		this.initializeGraph('weight')
+	constructor(graph: Graph) {
+		this.graph = graph
 		this.render()
 	}
 
@@ -204,250 +201,10 @@ class App {
 		this.render()
 	}
 
-	#graphNodesStatusResetter(id: number) {
-		if (window.algorithmActiveId !== id) return
-
-		this.graph.graph.forEach(node => {
-			if (window.algorithmActiveId !== id) return
-
-			node.status = 'default'
-		})
-
-		this.render()
-	}
-
-	#graphEdgesTypeResetter(id: number) {
-		if (window.algorithmActiveId !== id) return
-
-		this.graph.graph.forEach(node => {
-			if (window.algorithmActiveId !== id) return
-
-			node.edges.forEach(edge => {
-				edge.type = 'default'
-			})
-		})
-
-		this.render()
-	}
-
 	/* Algorithms */
-
-	async lb5TaskSecond(id: number) {
-		const visited: Node[] = []
-		const startTime: Map<Node, number> = new Map()
-		const endTime: Map<Node, number> = new Map()
-		const state: { time: number } = { time: 0 }
-
-		for (const item of this.graph.graph.values()) {
-			if (!visited.includes(item)) {
-				if (window.algorithmActiveId !== id) {
-					return
-				}
-
-				await this.lb5TaskSecondInner(
-					item,
-					visited,
-					startTime,
-					endTime,
-					state,
-					id
-				)
-			}
-		}
-
-		console.log(startTime.size, endTime.size)
-
-		this.render()
-	}
-
-	compareStrings(firstString: string, secondString: string) {
-		if (firstString === secondString) return true
-		if (firstString.length !== secondString.length) return false
-
-		let differences = 0
-
-		for (let i = 0; i < firstString.length; i++) {
-			if (firstString[i] !== secondString[i]) {
-				differences++
-
-				if (differences > 1) return false
-			}
-		}
-
-		return true
-	}
-
-	async findPathThird(
-		start: Node,
-		end: Node,
-		visited: Set<Node>,
-		path: Map<Node, Node>
-	) {
-		const queue = [start]
-
-		while (queue.length > 0) {
-			const item = queue.shift()
-			if (!item) return null
-
-			if (item === end) {
-				return item
-			}
-
-			visited.add(item)
-
-			item.edges.forEach(edge => {
-				if (this.graph.mode === 'directed' && edge.status === 'no-direction')
-					return
-
-				const adjacentNode = edge.adjacentNode
-
-				if (!visited.has(adjacentNode) && !queue.includes(adjacentNode)) {
-					queue.push(adjacentNode)
-					path.set(adjacentNode, item)
-				}
-			})
-		}
-
-		return false
-	}
-
-	async lb5TaskSecondInner(
-		node: Node,
-		visited: Node[],
-		startTime: Map<Node, number>,
-		endTime: Map<Node, number>,
-		state: { time: number },
-		id: number
-	) {
-		const jungle: Node[] = []
-
-		if (window.algorithmActiveId !== id) {
-			return
-		}
-
-		if (!node) return null
-
-		startTime.set(node, state.time)
-		state.time++
-
-		visited.push(node)
-		jungle.push(node)
-
-		for (const edge of [...node.edges].toReversed()) {
-			if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
-				continue
-			}
-
-			const adjacentNode = edge.adjacentNode
-
-			// if (item.value === 8) debugger
-
-			if (!visited.includes(adjacentNode)) {
-				console.log(
-					'Tree Edge: ' + node.value + '-->' + adjacentNode.value + '<br>'
-				)
-
-				edge.type = 'default'
-
-				await this.lb5TaskSecondInner(
-					adjacentNode,
-					visited,
-					startTime,
-					endTime,
-					state,
-					id
-				)
-			} else {
-				// if parent node is traversed after the neighbour node
-
-				const itemStartTime = startTime.get(node) ?? -1
-				const adjacentStartTime = startTime.get(adjacentNode) ?? -1
-				const itemEndTime = endTime.get(node) ?? -1
-				const adjacentEndTime = endTime.get(adjacentNode) ?? -1
-
-				console.table({
-					value: node.value,
-					// startTime: startTime,
-					// endTime: JSendTime,
-					adjacentNode: adjacentNode.value,
-					itemStartTime: itemStartTime,
-					adjacentStartTime: adjacentStartTime,
-					itemEndTime: itemEndTime,
-					adjacentEndTime: adjacentEndTime
-				})
-
-				if (itemStartTime >= adjacentStartTime && adjacentEndTime === -1) {
-					console.log(
-						'Back Edge: ' + node.value + '-->' + adjacentNode.value + '<br>'
-					)
-					edge.type = 'back'
-				}
-
-				// if the neighbour node is a  but not a part of the tree
-				else if (itemStartTime < adjacentStartTime && adjacentEndTime !== -1) {
-					console.log(
-						'Forward Edge: ' + node.value + '-->' + adjacentNode.value + '<br>'
-					)
-					edge.type = 'forward'
-				}
-
-				// if parent and neighbour node do not
-				// have any ancestor and descendant relationship between them
-				else {
-					console.log(
-						'Cross Edge: ' + node.value + '-->' + adjacentNode.value + '<br>'
-					)
-					edge.type = 'cross'
-				}
-			}
-		}
-
-		endTime.set(node, state.time)
-		state.time++
-
-		await setNodeStatus(
-			node,
-			{
-				status: 'progress',
-				sleep: false
-			},
-			this.render.bind(this)
-		)
-
-		await sleep(DELAY)
-
-		this.render()
-
-		// console.log('DFS:', jungle.map(item => item.value).join(', 	'))
-	}
-
-	private initializeGraph(
-		type: 'default' | 'weight' | 'minus-weight' = 'default'
-	) {
-		let graphData = []
-
-		switch (type) {
-			case 'default': {
-				graphData = DEFAULT_PRESET
-				break
-			}
-			case 'weight': {
-				graphData = WEIGHTS_PRESET
-				break
-			}
-			case 'minus-weight': {
-				graphData = MINUS_WEIGHTS_PRESET
-				break
-			}
-		}
-
-		this.graph.graph = this.graph.createGraph(graphData)
-	}
 
 	render() {
 		const render = new Render()
-
-		console.log(this)
 
 		render.render(
 			this.graph,
@@ -460,7 +217,6 @@ class App {
 
 	initializeApp() {
 		this.#initializeUserEvents()
-		this.#initilizeMenu()
 	}
 
 	#initializeUserEvents() {
@@ -494,25 +250,92 @@ class App {
 		  } = {
 		opened: false
 	}
+}
 
-	async #algotihmWrapper(callback: () => Promise<void>) {
+class App {
+	graph: Graph
+	lastGraph: 'default' | 'lb5' | 'lb61' | 'lb62' = 'default'
+	render: () => void = () => {}
+
+	constructor() {
+		this.graph = new Graph()
+		this.initializeGraph('weight')
+	}
+
+	main() {
+		const userInteractionManager = new UserInteractionManager(this.graph)
+
+		userInteractionManager.initializeApp()
+
+		this.render = userInteractionManager.render.bind(userInteractionManager)
+		this.initializeMenu()
+	}
+
+	graphNodesStatusResetter(id: number) {
+		if (window.algorithmActiveId !== id) return
+
+		this.graph.graph.forEach(node => {
+			if (window.algorithmActiveId !== id) return
+
+			node.status = 'default'
+		})
+
+		this.render()
+	}
+
+	graphEdgesTypeResetter(id: number) {
+		if (window.algorithmActiveId !== id) return
+
+		this.graph.graph.forEach(node => {
+			if (window.algorithmActiveId !== id) return
+
+			node.edges.forEach(edge => {
+				edge.type = 'default'
+			})
+		})
+
+		this.render()
+	}
+
+	async algorithmWrapper(callback: () => Promise<void>) {
 		resetActiveId()
 
-		this.#graphNodesStatusResetter(window.algorithmActiveId)
+		this.graphNodesStatusResetter(window.algorithmActiveId)
 
 		await callback()
 
-		this.#graphNodesStatusResetter(window.algorithmActiveId)
+		this.graphNodesStatusResetter(window.algorithmActiveId)
 	}
 
-	#initilizeMenu() {
+	initializeGraph(type: 'default' | 'weight' | 'minus-weight' = 'default') {
+		let graphData = []
+
+		switch (type) {
+			case 'default': {
+				graphData = DEFAULT_PRESET
+				break
+			}
+			case 'weight': {
+				graphData = WEIGHTS_PRESET
+				break
+			}
+			case 'minus-weight': {
+				graphData = MINUS_WEIGHTS_PRESET
+				break
+			}
+		}
+
+		this.graph.graph = this.graph.createGraph(graphData)
+	}
+
+	initializeMenu() {
 		const menu = new Menu()
 
 		const bfsElement = new MenuItem(
 			'bfs',
 			async () => {
-				this.#algotihmWrapper(async () => {
-					const bfsAlgorithm = new BFS(this.graph, this.render.bind(this))
+				this.algorithmWrapper(async () => {
+					const bfsAlgorithm = new BFS(this.graph, this.render)
 					await bfsAlgorithm.bfsWrapper(window.algorithmActiveId)
 				})
 			},
@@ -522,8 +345,8 @@ class App {
 		const dfsElement = new MenuItem(
 			'dfs',
 			async () => {
-				this.#algotihmWrapper(async () => {
-					const dfsAlgorithm = new DFS(this.graph, this.render.bind(this))
+				this.algorithmWrapper(async () => {
+					const dfsAlgorithm = new DFS(this.graph, this.render)
 					await dfsAlgorithm.dfsWrapper(window.algorithmActiveId)
 				})
 			},
@@ -533,8 +356,8 @@ class App {
 		const resetElement = new MenuItem('reset', async () => {
 			window.algorithmActiveId = -1
 
-			this.#graphNodesStatusResetter(window.algorithmActiveId)
-			this.#graphEdgesTypeResetter(window.algorithmActiveId)
+			this.graphNodesStatusResetter(window.algorithmActiveId)
+			this.graphEdgesTypeResetter(window.algorithmActiveId)
 		})
 
 		const modeElement = new MenuItem('directed', async target => {
@@ -607,10 +430,7 @@ class App {
 
 				const maxLevel = Number(data.endNodeId) || 2
 
-				const nodesByDeepLevel = new NodesByDeepLevel(
-					this.graph,
-					this.render.bind(this)
-				)
+				const nodesByDeepLevel = new NodesByDeepLevel(this.graph, this.render)
 
 				const value = await nodesByDeepLevel.getNodesByDeepLevel(
 					startNode,
@@ -621,7 +441,7 @@ class App {
 
 				console.log(value)
 
-				this.#graphNodesStatusResetter(window.algorithmActiveId)
+				this.graphNodesStatusResetter(window.algorithmActiveId)
 			})
 
 			deepForm.addInput('startNodeId', 'Start node id:')
@@ -645,14 +465,18 @@ class App {
 
 				resetActiveId()
 				startNode.status = 'done'
+
+				const edgesTypes = new EdgesTypes(this.render, this.graph)
+
+				const value = await edgesTypes.edgesTypes(window.algorithmActiveId)
+
 				// TODO: Add checkbox auto reset
 				// TODO: Add use node in algorithm
-				const value = await this.lb5TaskSecond(window.algorithmActiveId)
 
 				console.log(value)
 
-				this.#graphEdgesTypeResetter(window.algorithmActiveId)
-				this.#graphNodesStatusResetter(window.algorithmActiveId)
+				this.graphEdgesTypeResetter(window.algorithmActiveId)
+				this.graphNodesStatusResetter(window.algorithmActiveId)
 			})
 
 			deepForm.addInput('startNodeId', 'Start node id:')
@@ -697,7 +521,7 @@ class App {
 					bellmanFordForm.renderCustomOutput('Paths not found')
 				}
 
-				this.#graphNodesStatusResetter(window.algorithmActiveId)
+				this.graphNodesStatusResetter(window.algorithmActiveId)
 			})
 
 			bellmanFordForm.addInput('startNodeId', 'Start node id:')
@@ -725,7 +549,7 @@ class App {
 				startNode.status = 'done'
 				endNode.status = 'done'
 
-				const dijkstra = new Dijkstra(this.graph, this.render.bind(this))
+				const dijkstra = new Dijkstra(this.graph, this.render)
 				const result = await dijkstra.dijkstra(startNode, endNode)
 
 				console.log(result)
@@ -737,7 +561,7 @@ class App {
 					)
 				}
 
-				this.#graphNodesStatusResetter(window.algorithmActiveId)
+				this.graphNodesStatusResetter(window.algorithmActiveId)
 			})
 
 			dijkstraForm.addInput('startNodeId', 'Start node id:')
@@ -801,7 +625,7 @@ class App {
 
 				floydWarshallForm.renderCustomOutput(text)
 
-				this.#graphNodesStatusResetter(window.algorithmActiveId)
+				this.graphNodesStatusResetter(window.algorithmActiveId)
 			})
 
 			sidePanel.renderForm(floydWarshallForm.getForRender(), FORM_KEY)
@@ -826,4 +650,4 @@ class App {
 
 const app = new App()
 
-app.initializeApp()
+app.main()
