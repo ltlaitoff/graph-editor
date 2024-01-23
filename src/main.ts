@@ -103,6 +103,7 @@ class UserInteractionManager {
 			console.log(this.mouseDownValues.target.dataset.elementid)
 		}
 	}
+
 	onClick(e: MouseEvent) {
 		console.log('click')
 
@@ -201,8 +202,6 @@ class UserInteractionManager {
 		this.render()
 	}
 
-	/* Algorithms */
-
 	render() {
 		const render = new Render()
 
@@ -256,19 +255,35 @@ class App {
 	graph: Graph
 	lastGraph: 'default' | 'lb5' | 'lb61' | 'lb62' = 'default'
 	render: () => void = () => {}
+	menu: Menu | null = null
 
 	constructor() {
 		this.graph = new Graph()
 		this.initializeGraph('weight')
 	}
 
-	main() {
+	initialize() {
 		const userInteractionManager = new UserInteractionManager(this.graph)
 
 		userInteractionManager.initializeApp()
 
 		this.render = userInteractionManager.render.bind(userInteractionManager)
-		this.initializeMenu()
+		this.menu = this.initializeMenu()
+		this.initializeHidePanelButton()
+	}
+
+	initializeHidePanelButton() {
+		const hidePanelButton = document.querySelector('#hidePanelButton')
+		if (!hidePanelButton) return
+
+		hidePanelButton.addEventListener('click', e => {
+			e.stopPropagation()
+
+			if (!this.menu) return
+
+			this.menu.section.classList.toggle('menu--hidden')
+			e.currentTarget.classList.toggle('hide-menu--active')
+		})
 	}
 
 	graphNodesStatusResetter(id: number) {
@@ -645,9 +660,10 @@ class App {
 		menu.addItem(floydWarshallElement)
 
 		menu.render()
+		return menu
 	}
 }
 
 const app = new App()
 
-app.main()
+app.initialize()

@@ -1,12 +1,19 @@
 export class Menu {
 	items: MenuItem[] = []
 
-	render() {
+	section: Element
+
+	constructor() {
 		const section = document.querySelector('#menu')
+
 		if (!section) {
-			return
+			throw new Error('section not found')
 		}
 
+		this.section = section
+	}
+
+	render() {
 		const nav = document.createElement('nav')
 		nav.className = 'menu__nav'
 
@@ -45,35 +52,8 @@ export class Menu {
 			e.stopPropagation()
 		}
 
-		section.innerHTML = ''
-		section.append(nav)
-		/* 	<section class="menu">
-				<nav
-					class="menu__nav"
-					id="main-menu"
-				>
-					<ul class="menu__list">
-						<li class="menu__item">
-							<button
-								class="menu__link"
-								data-id="dfs"
-							>
-								DFS
-							</button>
-						</li>
-
-
-						<li class="menu__item">
-							<button
-								class="menu__link"
-								data-id="change_graph"
-							>
-								d
-							</button>
-						</li>
-					</ul>
-				</nav>
-			</section> */
+		this.section.innerHTML = ''
+		this.section.append(nav)
 	}
 
 	addItem(item: MenuItem) {

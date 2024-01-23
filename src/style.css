@@ -43,6 +43,10 @@ body,
 	border-top-left-radius: 25px;
 	border-top-right-radius: 25px;
 	overflow: hidden;
+
+	&.menu--hidden {
+		display: none;
+	}
 }
 
 .menu__nav {
@@ -128,4 +132,44 @@ body,
 
 .content--circle {
 	transition: 0.5s all;
+}
+
+.hide-menu {
+	position: absolute;
+	width: 40px;
+	height: 40px;
+	top: 20px;
+	right: 20px;
+
+	border-radius: 10px;
+
+	border: none;
+	background: transparent;
+
+	transition: all 0.3s ease-in-out;
+
+	box-shadow: 0px 0px 10px var(--color-gray-200);
+	cursor: pointer;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	color: var(--color-gray-300);
+
+	& .hide-menu__icon {
+		width: 28px;
+	}
+
+	&.hide-menu--active {
+		opacity: 0;
+	}
+
+	&:hover {
+		opacity: 1;
+		color: var(--color-pink-600);
+
+		border: 1px solid var(--color-pink-300);
+		background: var(--color-pink-100);
+	}
 }
