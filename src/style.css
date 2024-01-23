@@ -41,8 +41,10 @@ body,
 	/*background: var(--color-purple-50);*/
 	transform: translateX(-50%);
 
+	transition: all 1s ease-out;
+
 	&.menu--hidden {
-		display: none;
+		bottom: -50px;
 	}
 }
 
@@ -66,6 +68,7 @@ body,
 }
 
 .menu__list {
+	position: relative;
 	height: 100%;
 	display: flex;
 	align-items: center;
@@ -171,6 +174,18 @@ body,
 
 .menu__link--active {
 	background: var(--color-pink-300);
+}
+
+.menu__divider {
+	position: absolute;
+	height: 40px;
+	width: 2px;
+	margin-left: -1px;
+
+	border-radius: 4px;
+	background: var(--color-red-200);
+	top: 50%;
+	transform: translateY(-50%);
 }
 
 /* Menu end */

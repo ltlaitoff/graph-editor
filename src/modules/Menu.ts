@@ -10,7 +10,7 @@ type TextColors =
 	| 'rose'
 
 export class Menu {
-	items: [MenuItem, TextColors][] = []
+	items: [MenuItem | MenuDivider, TextColors][] = []
 
 	section: Element
 
@@ -36,23 +36,32 @@ export class Menu {
 				const listElement = document.createElement('li')
 				listElement.className = 'menu__item'
 
-				const button = document.createElement('button')
-				button.className = `menu__link menu__link--${color}`
+				if (item instanceof MenuItem) {
+					const button = document.createElement('button')
+					button.className = `menu__link menu__link--${color}`
 
-				button.textContent = item.text
-				button.onclick = async e => {
-					if (item.highlight) {
-						button.classList.add('menu__link--active')
+					button.textContent = item.text
+					button.onclick = async e => {
+						if (item.highlight) {
+							button.classList.add('menu__link--active')
+						}
+
+						await item.callback(e.target as HTMLButtonElement)
+
+						if (item.highlight) {
+							button.classList.remove('menu__link--active')
+						}
 					}
 
-					await item.callback(e.target as HTMLButtonElement)
-
-					if (item.highlight) {
-						button.classList.remove('menu__link--active')
-					}
+					listElement.append(button)
 				}
 
-				listElement.append(button)
+				if (item instanceof MenuDivider) {
+					const divider = document.createElement('div')
+					divider.className = `menu__divider`
+
+					listElement.append(divider)
+				}
 
 				return listElement
 			})
@@ -67,10 +76,12 @@ export class Menu {
 		this.section.append(nav)
 	}
 
-	addItem(item: MenuItem, color: TextColors = 'pink') {
+	addItem(item: MenuItem | MenuDivider, color: TextColors = 'pink') {
 		this.items.push([item, color])
 	}
 }
+
+export class MenuDivider {}
 
 export class MenuItem {
 	text: string

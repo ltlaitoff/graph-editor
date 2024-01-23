@@ -9,7 +9,7 @@ import { BellmanFord } from './algorithms/BellmanFord.ts'
 import { FloydWarshall } from './algorithms/FloydWarshall.ts'
 import { NodesByDeepLevel } from './algorithms/NodesByDeepLevel.ts'
 import { DEFAULT_PRESET, MINUS_WEIGHTS_PRESET, WEIGHTS_PRESET } from './presets'
-import { Menu, MenuItem } from './modules/Menu.ts'
+import { Menu, MenuDivider, MenuItem } from './modules/Menu.ts'
 import { Graph } from './models/Graph.ts'
 import { SidePanel } from './modules/Panel.ts'
 import { Form } from './modules/Form.ts'
@@ -253,7 +253,7 @@ class UserInteractionManager {
 
 class App {
 	graph: Graph
-	lastGraph: 'default' | 'lb5' | 'lb61' | 'lb62' = 'default'
+	lastGraph: '1' | '2' | '3' | '4' = '1'
 	render: () => void = () => {}
 	menu: Menu | null = null
 
@@ -386,35 +386,41 @@ class App {
 			this.render()
 		})
 
-		const changeGraphElement = new MenuItem('d', async target => {
-			if (this.lastGraph === 'default') {
-				this.initializeGraph('weight')
-				target.textContent = 'lb61'
-				this.lastGraph = 'lb61'
-			}
+		const changeGraphElement = new MenuItem('1', async target => {
+			switch (this.lastGraph) {
+				case '1': {
+					target.textContent = '2'
+					this.lastGraph = '2'
+					this.initializeGraph('weight')
+					break
+				}
 
-			if (this.lastGraph === 'lb5') {
-				this.initializeGraph()
-				this.lastGraph = 'default'
-				target.textContent = 'd'
-			}
+				case '2': {
+					this.lastGraph = '3'
+					target.textContent = '3'
+					this.initializeGraph()
+					break
+				}
 
-			if (this.lastGraph === 'lb61') {
-				this.initializeGraph('minus-weight')
-				this.lastGraph = 'lb62'
-				target.textContent = 'lb62'
-			}
+				case '3': {
+					this.lastGraph = '4'
+					target.textContent = '4'
+					this.initializeGraph('minus-weight')
+					break
+				}
 
-			if (this.lastGraph === 'lb62') {
-				this.initializeGraph()
-				this.lastGraph = 'default'
-				target.textContent = 'd'
+				case '4': {
+					this.lastGraph = '1'
+					target.textContent = '1'
+					this.initializeGraph()
+					break
+				}
 			}
 
 			this.render()
 		})
 
-		const weightElement = new MenuItem('w', async target => {
+		const weightElement = new MenuItem('weight', async target => {
 			if (this.graph.weights === true) {
 				this.graph.weights = false
 			} else {
@@ -649,10 +655,12 @@ class App {
 
 		menu.addItem(bfsElement)
 		menu.addItem(dfsElement)
+		menu.addItem(new MenuDivider())
 		menu.addItem(resetElement, 'rose')
 		menu.addItem(modeElement, 'indigo')
 		menu.addItem(changeGraphElement, 'sky')
 		menu.addItem(weightElement, 'amber')
+		menu.addItem(new MenuDivider())
 		menu.addItem(deepElement)
 		menu.addItem(idk1Element)
 		menu.addItem(bellmanFordElement)
