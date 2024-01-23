@@ -1,5 +1,16 @@
+type TextColors =
+	| 'pink'
+	| 'green'
+	| 'sky'
+	| 'amber'
+	| 'lime'
+	| 'teal'
+	| 'indigo'
+	| 'purple'
+	| 'rose'
+
 export class Menu {
-	items: MenuItem[] = []
+	items: [MenuItem, TextColors][] = []
 
 	section: Element
 
@@ -21,12 +32,12 @@ export class Menu {
 		ul.className = 'menu__list'
 
 		ul.append(
-			...this.items.map(item => {
+			...this.items.map(([item, color]) => {
 				const listElement = document.createElement('li')
 				listElement.className = 'menu__item'
 
 				const button = document.createElement('button')
-				button.className = 'menu__link'
+				button.className = `menu__link menu__link--${color}`
 
 				button.textContent = item.text
 				button.onclick = async e => {
@@ -56,8 +67,8 @@ export class Menu {
 		this.section.append(nav)
 	}
 
-	addItem(item: MenuItem) {
-		this.items.push(item)
+	addItem(item: MenuItem, color: TextColors = 'pink') {
+		this.items.push([item, color])
 	}
 }
 

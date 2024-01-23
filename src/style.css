@@ -38,20 +38,31 @@ body,
 	left: 50%;
 
 	height: 50px;
-	background: var(--color-purple-50);
+	/*background: var(--color-purple-50);*/
 	transform: translateX(-50%);
-	border-top-left-radius: 25px;
-	border-top-right-radius: 25px;
-	overflow: hidden;
 
 	&.menu--hidden {
 		display: none;
 	}
 }
 
+.menu .menu__item:first-child .menu__link {
+	padding-left: 20px;
+	border-top-left-radius: 25px;
+}
+
+.menu .menu__item:last-child .menu__link {
+	padding-right: 20px;
+	border-top-right-radius: 25px;
+}
+
 .menu__nav {
 	height: 100%;
-	/* display: none; */
+
+	border: 1px solid var(--color-pink-400);
+
+	border-top-left-radius: 25px;
+	border-top-right-radius: 25px;
 }
 
 .menu__list {
@@ -69,15 +80,97 @@ body,
 	padding: 10px 15px;
 	font-family: 'Roboto', sans-serif;
 	font-size: 16px;
-	background: var(--color-purple-200);
-	color: var(--color-purple-950);
+
 	border: none;
 	height: 100%;
 	cursor: pointer;
+
+	transition: all 0.4s;
+
+	&.menu__link--pink {
+		background: var(--color-pink-100);
+		color: var(--color-pink-900);
+
+		&:hover {
+			background: var(--color-pink-200);
+		}
+	}
+
+	&.menu__link--green {
+		background: var(--color-green-100);
+		color: var(--color-green-900);
+
+		&:hover {
+			background: var(--color-green-200);
+		}
+	}
+
+	&.menu__link--sky {
+		background: var(--color-sky-100);
+		color: var(--color-sky-900);
+
+		&:hover {
+			background: var(--color-sky-200);
+		}
+	}
+
+	&.menu__link--amber {
+		background: var(--color-amber-100);
+		color: var(--color-amber-900);
+
+		&:hover {
+			background: var(--color-amber-200);
+		}
+	}
+
+	&.menu__link--lime {
+		background: var(--color-lime-100);
+		color: var(--color-lime-900);
+
+		&:hover {
+			background: var(--color-lime-200);
+		}
+	}
+
+	&.menu__link--teal {
+		background: var(--color-teal-100);
+		color: var(--color-teal-900);
+
+		&:hover {
+			background: var(--color-teal-200);
+		}
+	}
+
+	&.menu__link--indigo {
+		background: var(--color-indigo-100);
+		color: var(--color-indigo-900);
+
+		&:hover {
+			background: var(--color-indigo-200);
+		}
+	}
+
+	&.menu__link--purple {
+		background: var(--color-purple-100);
+		color: var(--color-purple-900);
+
+		&:hover {
+			background: var(--color-purple-200);
+		}
+	}
+
+	&.menu__link--rose {
+		background: var(--color-rose-100);
+		color: var(--color-rose-900);
+
+		&:hover {
+			background: var(--color-rose-200);
+		}
+	}
 }
 
 .menu__link--active {
-	background: var(--color-purple-300);
+	background: var(--color-pink-300);
 }
 
 /* Menu end */
