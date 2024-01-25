@@ -14,6 +14,7 @@ import { Graph } from './models/Graph.ts'
 import { SidePanel } from './modules/Panel.ts'
 import { Form } from './modules/Form.ts'
 import { EdgesTypes } from './algorithms/EdgesTypes.ts'
+import { ContextItem, ContextMenu } from './modules/ContextMenu.ts'
 
 class UserInteractionManager {
 	graph: Graph
@@ -35,10 +36,12 @@ class UserInteractionManager {
 	currentClickedTarget: HTMLElement | null = null
 
 	pressedKeyCode: string | null = null
+	contextMenu: ContextMenu
 
 	constructor(graph: Graph) {
 		this.graph = graph
 		this.render()
+		this.contextMenu = new ContextMenu()
 	}
 
 	onKeyDown(event: KeyboardEvent): void {
@@ -185,21 +188,37 @@ class UserInteractionManager {
 
 		const nodeId = (e.target as HTMLElement).dataset.elementid || ''
 
-		const node = this.graph.graph.get(nodeId)
+		this.contextMenu.addItem(
+			new ContextItem(
+				'Delete node',
+				async (_, nodeId) => {
+					const node = this.graph.graph.get(nodeId)
 
-		if (!node) return
+					if (!node) return
 
-		this.graph.graph.forEach(graphNode => {
-			graphNode.edges = new Set(
-				[...graphNode.edges].filter(edge => {
-					return edge.adjacentNode !== node
-				})
+					this.graph.graph.forEach(graphNode => {
+						graphNode.edges = new Set(
+							[...graphNode.edges].filter(edge => {
+								return edge.adjacentNode !== node
+							})
+						)
+					})
+
+					this.graph.graph.delete(nodeId)
+
+					this.contextMenu.close()
+					this.render()
+				},
+				nodeId,
+				{
+					name: 'X',
+					code: 'KeyX'
+				}
 			)
-		})
+		)
 
-		this.graph.graph.delete(nodeId)
-
-		this.render()
+		this.contextMenu.changePosition(e.clientX, e.clientY)
+		this.contextMenu.renderItems()
 	}
 
 	render() {
@@ -219,9 +238,14 @@ class UserInteractionManager {
 	}
 
 	#initializeUserEvents() {
-		document.addEventListener('mousedown', (e: MouseEvent) =>
+		document.addEventListener('mousedown', (e: MouseEvent) => {
+			if (this.contextMenu.open) {
+				this.contextMenu.close()
+				return
+			}
+
 			this.onMouseDown(e)
-		)
+		})
 		document.addEventListener('mouseup', () => this.onMouseUp())
 		document.addEventListener('mousemove', (e: MouseEvent) =>
 			this.onMouseMove(e)
@@ -230,11 +254,28 @@ class UserInteractionManager {
 		document.addEventListener('contextmenu', (e: MouseEvent) =>
 			this.onContextMenu(e)
 		)
-		document.addEventListener('click', (e: MouseEvent) => this.onClick(e))
+		document.addEventListener('click', (e: MouseEvent) => {
+			if (this.contextMenu.open) {
+				this.contextMenu.close()
+				return
+			}
 
-		document.addEventListener('keydown', (e: KeyboardEvent) =>
+			this.onClick(e)
+		})
+
+		document.addEventListener('keydown', (e: KeyboardEvent) => {
+			if (this.contextMenu.open) {
+				if (e.code === 'Escape') {
+					this.contextMenu.close()
+					return
+				}
+
+				this.contextMenu.keyPressed(e.code)
+				return
+			}
+
 			this.onKeyDown(e)
-		)
+		})
 		document.addEventListener('keyup', (e: KeyboardEvent) => this.onKeyUp(e))
 	}
 
@@ -282,7 +323,7 @@ class App {
 			if (!this.menu) return
 
 			this.menu.section.classList.toggle('menu--hidden')
-			e.currentTarget.classList.toggle('hide-menu--active')
+			;(e.currentTarget as HTMLElement).classList.toggle('hide-menu--active')
 		})
 	}
 
