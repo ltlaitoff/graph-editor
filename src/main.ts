@@ -110,46 +110,97 @@ class UserInteractionManager {
 	onClick(e: MouseEvent) {
 		console.log('click')
 
-		if ((e.target as HTMLElement).tagName !== 'svg') {
-			if (!(e.target as HTMLElement).dataset.elementid) return
+		const target = e.target as HTMLElement
 
-			console.log('currentClikedTarget: ', this.currentClickedTarget)
+		if (target.tagName !== 'svg') {
+			if (target.dataset.edgeTextId !== undefined) {
+				const [adjacentNodeValue, weight, status] =
+					target.dataset.edgeTextId?.split('-') ?? []
 
-			if (
-				this.currentClickedTarget !== null &&
-				this.currentClickedTarget !== e.target
-			) {
-				const nodePrev = this.graph.graph.get(
-					this.currentClickedTarget.dataset.elementid || ''
+				const adjacentNode = this.graph.graph.get(adjacentNodeValue)
+				if (!adjacentNode) return
+
+				const edge = Array.from(adjacentNode.parents.values()).find(
+					edge => edge.weight === Number(weight) && edge.status === status
 				)
 
-				const nodeCurrent = this.graph.graph.get(
-					(e.target as HTMLElement).dataset.elementid || ''
+				if (!edge) return
+
+				const { top, left } = target.getBoundingClientRect()
+
+				const input = document.createElement('input')
+				input.type = 'number'
+				input.value = String(edge.weight)
+				input.className = 'input-change-weight'
+
+				input.setAttribute(
+					'style',
+					`position:absolute; top: ${top}px; left: ${left}px`
 				)
 
-				if (!nodePrev || !nodeCurrent) return
+				input.addEventListener('blur', e => {
+					const value = (e.target as HTMLInputElement).value
 
-				this.graph.toggleEdge(nodePrev, nodeCurrent)
+					const valueNumber = Number(value)
 
-				// const findedEdge = [...nodePrev.edges].find(edge => {
-				// 	return edge.adjacentNode === nodeCurrent
-				// })
+					console.log(value, valueNumber)
 
-				// if (!findedEdge) {
-				// 	nodePrev.edges.add(new Edge(nodeCurrent, 1))
-				// } else {
-				// 	nodePrev.edges.delete(findedEdge)
-				// }
+					if (isNaN(valueNumber)) {
+						edge.weight = 0
+					} else {
+						edge.weight = valueNumber
+					}
 
-				this.currentClickedTarget = null
+					input.remove()
+					this.render()
+				})
 
-				this.render()
+				document.body.append(input)
+				input.focus()
+
 				return
 			}
 
-			this.currentClickedTarget = e.target as HTMLElement
+			if (target.dataset.elementid) {
+				console.log('currentClikedTarget: ', this.currentClickedTarget)
 
-			this.render()
+				if (
+					this.currentClickedTarget !== null &&
+					this.currentClickedTarget !== e.target
+				) {
+					const nodePrev = this.graph.graph.get(
+						this.currentClickedTarget.dataset.elementid || ''
+					)
+
+					const nodeCurrent = this.graph.graph.get(
+						target.dataset.elementid || ''
+					)
+
+					if (!nodePrev || !nodeCurrent) return
+
+					this.graph.toggleEdge(nodePrev, nodeCurrent)
+
+					// const findedEdge = [...nodePrev.edges].find(edge => {
+					// 	return edge.adjacentNode === nodeCurrent
+					// })
+
+					// if (!findedEdge) {
+					// 	nodePrev.edges.add(new Edge(nodeCurrent, 1))
+					// } else {
+					// 	nodePrev.edges.delete(findedEdge)
+					// }
+
+					this.currentClickedTarget = null
+
+					this.render()
+					return
+				}
+
+				this.currentClickedTarget = target
+
+				this.render()
+			}
+
 			return
 		}
 

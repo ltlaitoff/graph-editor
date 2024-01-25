@@ -115,8 +115,8 @@ export class Render {
 						}
 
 						const text = `
-							<text x="${textPosition.x}" y="${textPosition.y}" style="stroke:white; stroke-width:0.6em">${edge.weight}</text>
-							<text x="${textPosition.x}" y="${textPosition.y}" style="fill:black">${edge.weight}</text> `
+							<text x="${textPosition.x}" y="${textPosition.y}" data-edge-text-id-back="${edge}" style="stroke:white; stroke-width:0.6em">${edge.weight}</text>
+							<text x="${textPosition.x}" y="${textPosition.y}" data-edge-text-id="${edge.adjacentNode.value}-${edge.weight}-${edge.status}" style="fill:black">${edge.weight}</text> `
 
 						return `<g>
 							<path
@@ -126,16 +126,6 @@ export class Render {
 								}"
 								fill="none"
 								stroke-width="2"
-								stroke="${color}"
-							></path>
-							<path
-							class="content--edge"
-							d="M ${nodeX + offsetX} ${nodeY + offsetY} L ${adjacentNodeX + offsetX} ${
-								adjacentNodeY + offsetY
-							}"
-								opacity="0"
-								fill="none"
-								stroke-width="30"
 								stroke="${color}"
 							></path>
 							${graph.mode === 'directed' || window.DEBUG ? arrow : ''}
@@ -162,7 +152,13 @@ export class Render {
 		)
 		const ourEdges = this.#getLinesForRender(graph, offsetX, offsetY)
 
-		document.querySelector<HTMLDivElement>('#content')!.innerHTML = `
+		const content = document.querySelector<HTMLDivElement>('#content')
+
+		if (!content) {
+			throw new Error('No content')
+		}
+
+		content.innerHTML = `
 			<div class="graph__wrapper">
 				<svg
 				width="100%"
