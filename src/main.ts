@@ -389,18 +389,6 @@ class UserInteractionManager {
 		})
 		document.addEventListener('keyup', (e: KeyboardEvent) => this.onKeyUp(e))
 	}
-
-	localState:
-		| {
-				opened: false
-		  }
-		| {
-				opened: true
-				algorithm: string
-				activeElement: HTMLElement
-		  } = {
-		opened: false
-	}
 }
 
 class App {
@@ -604,6 +592,98 @@ class App {
 		})
 
 		const sidePanel = new SidePanel('panel')
+
+		const settingsElement = new MenuItem('S', async () => {
+			const FORM_KEY = 'deep'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
+			}
+
+			const resetAllPresets = document.createElement('button')
+			resetAllPresets.className = 'button'
+			resetAllPresets.textContent = 'Reset all presets'
+
+			const getTable = () => {
+				const nodes = Array.from(this.graph.graph.values())
+				const numNodes = nodes.length
+
+				const distances: number[][] = Array.from({ length: numNodes }, () =>
+					Array(numNodes).fill(Infinity)
+				)
+
+				nodes.forEach((node, i) => {
+					distances[i][i] = 0
+
+					node.edges.forEach(edge => {
+						if (
+							this.graph.mode === 'directed' &&
+							edge.status === 'no-direction'
+						) {
+							return
+						}
+
+						const j = nodes.indexOf(edge.adjacentNode)
+
+						distances[i][j] = edge.weight
+					})
+				})
+
+				const text = [
+					`<tr>${[{ value: '' }, ...nodes]
+						.map(
+							node =>
+								'<th class="table-cell table-cell--head">' +
+								node.value +
+								'</th>'
+						)
+						.join('\n')}</tr>`,
+					...distances.map((item, index) => {
+						const result: string[] = [
+							`<th class="table-cell table-cell--head">${nodes[index].value}</th>`,
+							...item.map(subItem => {
+								if (subItem === Infinity) {
+									return `<td class="table-cell"></td>`
+								}
+
+								return `<td class="table-cell">${subItem}</td>`
+							})
+						]
+
+						return `<tr>${result.join('\n')}</tr>`
+					})
+				]
+
+				const table = document.createElement('table')
+				table.className = 'table'
+				table.innerHTML = text.join('\n')
+
+				return table
+			}
+
+			let table = getTable()
+
+			const rerenderTable = document.createElement('button')
+			rerenderTable.className = 'button'
+			rerenderTable.textContent = 'Update table'
+			rerenderTable.setAttribute('style', 'margin-top: 10px')
+
+			rerenderTable.addEventListener('click', () => {
+				const oldTable = table
+				table = getTable()
+
+				oldTable.replaceWith(table)
+			})
+
+			const result = document.createElement('div')
+			result.append(resetAllPresets)
+			result.append(table)
+			result.append(rerenderTable)
+
+			sidePanel.renderForm(result, FORM_KEY)
+			sidePanel.open()
+		})
 
 		const deepElement = new MenuItem('deep', async () => {
 			const FORM_KEY = 'deep'
@@ -831,6 +911,7 @@ class App {
 		menu.addItem(modeElement, 'indigo')
 		menu.addItem(changeGraphPreset, 'sky')
 		menu.addItem(weightElement, 'amber')
+		menu.addItem(settingsElement, 'teal')
 		menu.addItem(new MenuDivider())
 		menu.addItem(deepElement)
 		menu.addItem(idk1Element)

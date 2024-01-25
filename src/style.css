@@ -354,3 +354,37 @@ body,
 		border-color: var(--color-amber-300);
 	}
 }
+
+.table {
+	margin-top: 10px;
+	border-collapse: collapse;
+
+	& .table-cell {
+		padding: 4px 6px;
+		text-align: center;
+		border: 1px solid var(--color-gray-300);
+	}
+
+	& .table-cell--head {
+		background: var(--color-pink-100);
+		padding: 4px 10px;
+	}
+}
+
+.button {
+	padding: 4px 10px;
+	text-align: center;
+
+	border: none;
+	border-radius: 10px;
+
+	background: var(--color-slate-50);
+	border: 1px solid var(--color-slate-500);
+	color: var(--color-slate-900);
+	cursor: pointer;
+
+	&:hover {
+		color: var(--color-slate-600);
+		border-color: var(--color-slate-300);
+	}
+}
