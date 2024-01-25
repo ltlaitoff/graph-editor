@@ -15,6 +15,9 @@ import { SidePanel } from './modules/Panel.ts'
 import { Form } from './modules/Form.ts'
 import { EdgesTypes } from './algorithms/EdgesTypes.ts'
 import { ContextItem, ContextMenu } from './modules/ContextMenu.ts'
+import { Storage } from './utils/Storage.ts'
+import { StoragePresets } from './types/StoragePresets.ts'
+import { PresetItem } from './types/PresetItem.ts'
 
 class UserInteractionManager {
 	graph: Graph
@@ -38,10 +41,13 @@ class UserInteractionManager {
 	pressedKeyCode: string | null = null
 	contextMenu: ContextMenu
 
-	constructor(graph: Graph) {
+	updatePreset: (graph: Graph) => void
+
+	constructor(graph: Graph, updatePreset: (graph: Graph) => void) {
 		this.graph = graph
 		this.render()
 		this.contextMenu = new ContextMenu()
+		this.updatePreset = updatePreset
 	}
 
 	onKeyDown(event: KeyboardEvent): void {
@@ -151,6 +157,7 @@ class UserInteractionManager {
 						edge.weight = valueNumber
 					}
 
+					this.updatePreset(this.graph)
 					input.remove()
 					this.render()
 				})
@@ -179,6 +186,7 @@ class UserInteractionManager {
 					if (!nodePrev || !nodeCurrent) return
 
 					this.graph.toggleEdge(nodePrev, nodeCurrent)
+					this.updatePreset(this.graph)
 
 					// const findedEdge = [...nodePrev.edges].find(edge => {
 					// 	return edge.adjacentNode === nodeCurrent
@@ -228,6 +236,7 @@ class UserInteractionManager {
 			e.clientX - this.offsetX,
 			e.clientY - this.offsetY
 		)
+		this.updatePreset(this.graph)
 
 		this.render()
 	}
@@ -267,6 +276,7 @@ class UserInteractionManager {
 						})
 
 						this.graph.graph.delete(nodeId)
+						this.updatePreset(this.graph)
 
 						this.contextMenu.close()
 						this.render()
@@ -304,6 +314,7 @@ class UserInteractionManager {
 							e.clientX - this.offsetX,
 							e.clientY - this.offsetY
 						)
+						this.updatePreset(this.graph)
 
 						this.contextMenu.close()
 						this.render()
@@ -394,23 +405,65 @@ class UserInteractionManager {
 
 class App {
 	graph: Graph
-	lastGraph: '1' | '2' | '3' | '4' = '1'
+	currentPreset: string = '1'
 	render: () => void = () => {}
 	menu: Menu | null = null
+	storage: Storage
+	storagePresets: StoragePresets
 
 	constructor() {
 		this.graph = new Graph()
-		this.initializeGraph('weight')
+
+		this.storage = new Storage()
+
+		if (this.storage.read() === null) {
+			this.initializeDefaultPresets()
+		}
+
+		this.storagePresets = this.storage.read()
+		this.graph.graph = this.graph.createGraph(
+			this.storagePresets[this.currentPreset]
+		)
 	}
 
 	initialize() {
-		const userInteractionManager = new UserInteractionManager(this.graph)
+		const userInteractionManager = new UserInteractionManager(
+			this.graph,
+			this.updatePreset.bind(this)
+		)
 
 		userInteractionManager.initializeApp()
 
 		this.render = userInteractionManager.render.bind(userInteractionManager)
 		this.menu = this.initializeMenu()
 		this.initializeHidePanelButton()
+	}
+
+	graphToPreset(graph: Graph): PresetItem[] {
+		return Array.from(graph.graph.values())
+			.map(node => {
+				const base = {
+					from: node.value,
+					x: node.x ?? 0,
+					y: node.y ?? 0
+				}
+
+				return Array.from(node.edges).map(edge => {
+					return {
+						...base,
+						to: edge.adjacentNode.value,
+						weight: edge.weight
+					}
+				})
+			})
+			.flat()
+	}
+
+	updatePreset(graph: Graph) {
+		this.storagePresets[this.currentPreset] = this.graphToPreset(graph)
+
+		this.storage.writeAll(this.storagePresets)
+		this.storagePresets = this.storage.read()
 	}
 
 	initializeHidePanelButton() {
@@ -463,25 +516,13 @@ class App {
 		this.graphNodesStatusResetter(window.algorithmActiveId)
 	}
 
-	initializeGraph(type: 'default' | 'weight' | 'minus-weight' = 'default') {
-		let graphData = []
-
-		switch (type) {
-			case 'default': {
-				graphData = DEFAULT_PRESET
-				break
-			}
-			case 'weight': {
-				graphData = WEIGHTS_PRESET
-				break
-			}
-			case 'minus-weight': {
-				graphData = MINUS_WEIGHTS_PRESET
-				break
-			}
-		}
-
-		this.graph.graph = this.graph.createGraph(graphData)
+	initializeDefaultPresets() {
+		this.storage.writeAll({
+			'1': DEFAULT_PRESET,
+			'2': WEIGHTS_PRESET,
+			'3': MINUS_WEIGHTS_PRESET,
+			'4': []
+		})
 	}
 
 	initializeMenu() {
@@ -527,36 +568,25 @@ class App {
 			this.render()
 		})
 
-		const changeGraphElement = new MenuItem('1', async target => {
-			switch (this.lastGraph) {
-				case '1': {
-					target.textContent = '2'
-					this.lastGraph = '2'
-					this.initializeGraph('weight')
-					break
-				}
+		const changeGraphPreset = new MenuItem(this.currentPreset, async target => {
+			const presetValues = Object.keys(this.storagePresets)
 
-				case '2': {
-					this.lastGraph = '3'
-					target.textContent = '3'
-					this.initializeGraph()
-					break
-				}
+			console.log(presetValues)
 
-				case '3': {
-					this.lastGraph = '4'
-					target.textContent = '4'
-					this.initializeGraph('minus-weight')
-					break
-				}
+			const index = presetValues.indexOf(this.currentPreset)
 
-				case '4': {
-					this.lastGraph = '1'
-					target.textContent = '1'
-					this.initializeGraph()
-					break
-				}
-			}
+			const next =
+				index === presetValues.length - 1
+					? presetValues[0]
+					: presetValues[index + 1]
+
+			console.log(target, next)
+
+			if (!next) return
+
+			target.textContent = next
+			this.currentPreset = next
+			this.graph.graph = this.graph.createGraph(this.storagePresets[next])
 
 			this.render()
 		})
@@ -799,7 +829,7 @@ class App {
 		menu.addItem(new MenuDivider())
 		menu.addItem(resetElement, 'rose')
 		menu.addItem(modeElement, 'indigo')
-		menu.addItem(changeGraphElement, 'sky')
+		menu.addItem(changeGraphPreset, 'sky')
 		menu.addItem(weightElement, 'amber')
 		menu.addItem(new MenuDivider())
 		menu.addItem(deepElement)

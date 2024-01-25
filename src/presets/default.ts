@@ -1,4 +1,6 @@
-export const DEFAULT_PRESET = [
+import { PresetItem } from '../types/PresetItem.ts'
+
+export const DEFAULT_PRESET: PresetItem[] = [
 	{ from: '1', to: '9', weight: 1, x: 751, y: 189 },
 	{ from: '1', to: '2', weight: 1, x: 751, y: 189 },
 	{ from: '1', to: '3', weight: 1, x: 751, y: 189 },
