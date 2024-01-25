@@ -181,41 +181,90 @@ class UserInteractionManager {
 		this.render()
 	}
 
+	getTypeOfContextMenu(e: MouseEvent) {
+		if ((e.target as HTMLElement).dataset.elementid) {
+			return 'node'
+		}
+
+		return 'back'
+	}
+
 	onContextMenu(e: MouseEvent) {
 		e.preventDefault()
 
-		if (!(e.target as HTMLElement).dataset.elementid) return
+		const typeOfContextMenu = this.getTypeOfContextMenu(e)
 
-		const nodeId = (e.target as HTMLElement).dataset.elementid || ''
+		if (typeOfContextMenu === 'node') {
+			if (!(e.target as HTMLElement).dataset.elementid) return
 
-		this.contextMenu.addItem(
-			new ContextItem(
-				'Delete node',
-				async (_, nodeId) => {
-					const node = this.graph.graph.get(nodeId)
+			const nodeId = (e.target as HTMLElement).dataset.elementid || ''
 
-					if (!node) return
+			this.contextMenu.addItem(
+				new ContextItem(
+					'Delete node',
+					async (_, nodeId) => {
+						const node = this.graph.graph.get(nodeId)
 
-					this.graph.graph.forEach(graphNode => {
-						graphNode.edges = new Set(
-							[...graphNode.edges].filter(edge => {
-								return edge.adjacentNode !== node
-							})
-						)
-					})
+						if (!node) return
 
-					this.graph.graph.delete(nodeId)
+						this.graph.graph.forEach(graphNode => {
+							graphNode.edges = new Set(
+								[...graphNode.edges].filter(edge => {
+									return edge.adjacentNode !== node
+								})
+							)
+						})
 
-					this.contextMenu.close()
-					this.render()
-				},
-				nodeId,
-				{
-					name: 'X',
-					code: 'KeyX'
-				}
+						this.graph.graph.delete(nodeId)
+
+						this.contextMenu.close()
+						this.render()
+					},
+					nodeId,
+					{
+						name: 'X',
+						code: 'KeyX'
+					}
+				)
 			)
-		)
+		}
+
+		if (typeOfContextMenu === 'back') {
+			this.contextMenu.addItem(
+				new ContextItem(
+					'Add new node',
+					async () => {
+						const lastElement = [...this.graph.graph.values()].reduce(
+							(acc, node) => {
+								const asNumber = Number(node.value)
+
+								if (isNaN(asNumber)) {
+									return acc
+								}
+
+								return asNumber > acc ? asNumber : acc
+							},
+							-1
+						)
+
+						this.graph.addOrGetNode(
+							this.graph.graph,
+							String(lastElement + 1),
+							e.clientX - this.offsetX,
+							e.clientY - this.offsetY
+						)
+
+						this.contextMenu.close()
+						this.render()
+					},
+					null,
+					{
+						name: 'A',
+						code: 'KeyA'
+					}
+				)
+			)
+		}
 
 		this.contextMenu.changePosition(e.clientX, e.clientY)
 		this.contextMenu.renderItems()
