@@ -81,32 +81,34 @@ export class Graph {
 		}
 	}
 
-	createGraph(
-		graphData: {
-			from: GraphValue
-			to: GraphValue
-			weight: number
+	createGraph(newGraphData: {
+		nodes: {
+			value: GraphValue
 			x: number
 			y: number
 		}[]
-	) {
+		edges: {
+			from: GraphValue
+			to: GraphValue
+			weight: number
+		}[]
+	}) {
 		const newGraph = new Map<GraphValue, Node>()
 
-		for (const row of graphData) {
-			const node = this.addOrGetNode(newGraph, row.from)
-			if (!node) continue
+		for (const nodeData of newGraphData.nodes) {
+			this.addOrGetNode(newGraph, nodeData.value, nodeData.x, nodeData.y)
+		}
 
-			node.x = row.x
-			node.y = row.y
+		for (const row of newGraphData.edges) {
+			const node = this.addOrGetNode(newGraph, row.from)
+
+			if (!node) continue
 
 			const adjuacentNode = this.addOrGetNode(newGraph, row.to)
 
 			if (adjuacentNode === null) continue
 
 			this.toggleEdge(node, adjuacentNode, row.weight)
-			// const edge = new Edge(adjuacentNode, row.weight)
-
-			// node?.edges.add(edge)
 		}
 
 		return newGraph

@@ -1,7 +1,16 @@
-export interface PresetItem {
+export interface PresetNode {
+	value: string
+	x: number
+	y: number
+}
+
+export interface PresetEdge {
 	from: string
 	to: string
 	weight: number
-	x: number
-	y: number
+}
+
+export interface Preset {
+	nodes: PresetNode[]
+	edges: PresetEdge[]
 }

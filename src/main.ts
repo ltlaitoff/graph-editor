@@ -15,9 +15,10 @@ import { SidePanel } from './modules/Panel.ts'
 import { Form } from './modules/Form.ts'
 import { EdgesTypes } from './algorithms/EdgesTypes.ts'
 import { ContextItem, ContextMenu } from './modules/ContextMenu.ts'
-import { Storage } from './utils/Storage.ts'
+import { PresetStorage } from './utils/PresetStorage.ts'
 import { StoragePresets } from './types/StoragePresets.ts'
-import { PresetItem } from './types/PresetItem.ts'
+import { Preset, PresetEdge } from './types/PresetItem.ts'
+import { OffsetStorage } from './utils/OffsetStorage.ts'
 
 class UserInteractionManager {
 	graph: Graph
@@ -43,11 +44,29 @@ class UserInteractionManager {
 
 	updatePreset: (graph: Graph) => void
 
+	offsetStorage: OffsetStorage
+
 	constructor(graph: Graph, updatePreset: (graph: Graph) => void) {
 		this.graph = graph
-		this.render()
 		this.contextMenu = new ContextMenu()
 		this.updatePreset = updatePreset
+
+		this.offsetStorage = new OffsetStorage()
+		const offsetStorageValue = this.offsetStorage.read()
+
+		if (offsetStorageValue) {
+			this.offsetX = offsetStorageValue.offsetX
+			this.offsetY = offsetStorageValue.offsetY
+		}
+
+		this.render()
+	}
+
+	updateOffsetStorage(offsetX: number, offsetY: number) {
+		this.offsetStorage.writeAll({
+			offsetX,
+			offsetY
+		})
 	}
 
 	onKeyDown(event: KeyboardEvent): void {
@@ -94,6 +113,8 @@ class UserInteractionManager {
 			this.offsetX += e.movementX
 			this.offsetY += e.movementY
 
+			this.updateOffsetStorage(this.offsetX, this.offsetY)
+
 			this.render()
 		} else {
 			if (!this.mouseDownValues.target) return
@@ -107,9 +128,8 @@ class UserInteractionManager {
 			node.x = e.clientX - this.offsetX - this.mouseDownValues.innerOffsetX
 			node.y = e.clientY - this.offsetY - this.mouseDownValues.innerOffsetY
 
+			this.updatePreset(this.graph)
 			this.render()
-
-			console.log(this.mouseDownValues.target.dataset.elementid)
 		}
 	}
 
@@ -396,13 +416,13 @@ class App {
 	currentPreset: string = '1'
 	render: () => void = () => {}
 	menu: Menu | null = null
-	storage: Storage
+	storage: PresetStorage
 	storagePresets: StoragePresets
 
 	constructor() {
 		this.graph = new Graph()
 
-		this.storage = new Storage()
+		this.storage = new PresetStorage()
 
 		if (this.storage.read() === null) {
 			this.initializeDefaultPresets()
@@ -427,24 +447,39 @@ class App {
 		this.initializeHidePanelButton()
 	}
 
-	graphToPreset(graph: Graph): PresetItem[] {
-		return Array.from(graph.graph.values())
+	graphToPreset(graph: Graph): Preset {
+		const nodes = Array.from(graph.graph.values()).map(nodeInfo => {
+			return {
+				value: nodeInfo.value,
+				x: nodeInfo.x ?? 0,
+				y: nodeInfo.y ?? 0
+			}
+		})
+
+		const edges = Array.from(graph.graph.values())
 			.map(node => {
 				const base = {
-					from: node.value,
-					x: node.x ?? 0,
-					y: node.y ?? 0
+					from: node.value
 				}
 
-				return Array.from(node.edges).map(edge => {
-					return {
-						...base,
-						to: edge.adjacentNode.value,
-						weight: edge.weight
-					}
-				})
+				return Array.from(node.edges)
+					.map(edge => {
+						if (edge.status === 'no-direction') return null
+
+						return {
+							...base,
+							to: edge.adjacentNode.value,
+							weight: edge.weight
+						}
+					})
+					.filter(item => item !== null) as PresetEdge[]
 			})
 			.flat()
+
+		return {
+			nodes,
+			edges
+		}
 	}
 
 	updatePreset(graph: Graph) {
@@ -509,7 +544,10 @@ class App {
 			'1': DEFAULT_PRESET,
 			'2': WEIGHTS_PRESET,
 			'3': MINUS_WEIGHTS_PRESET,
-			'4': []
+			'4': {
+				nodes: [],
+				edges: []
+			}
 		})
 	}
 

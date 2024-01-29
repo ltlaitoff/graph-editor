@@ -1,6 +1,6 @@
 import { StoragePresets } from '../types/StoragePresets.ts'
 
-export class Storage {
+export class PresetStorage {
 	key = 'coursework'
 
 	writeAll(data: StoragePresets) {

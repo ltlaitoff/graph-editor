@@ -1,3 +1,9 @@
-import { PresetItem } from './PresetItem.ts'
+import { PresetEdge, PresetNode } from './PresetItem.ts'
 
-export type StoragePresets = Record<string, PresetItem[]>
+export type StoragePresets = Record<
+	string,
+	{
+		nodes: PresetNode[]
+		edges: PresetEdge[]
+	}
+>
