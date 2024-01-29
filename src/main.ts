@@ -19,6 +19,7 @@ import { PresetStorage } from './utils/PresetStorage.ts'
 import { StoragePresets } from './types/StoragePresets.ts'
 import { Preset, PresetEdge } from './types/PresetItem.ts'
 import { OffsetStorage } from './utils/OffsetStorage.ts'
+import WindowManager from './utils/WindowManager.ts'
 
 class UserInteractionManager {
 	graph: Graph
@@ -46,18 +47,59 @@ class UserInteractionManager {
 
 	offsetStorage: OffsetStorage
 
-	constructor(graph: Graph, updatePreset: (graph: Graph) => void) {
+	reloadPresetsFromStorage: () => void
+	windowsManaget
+
+	constructor(
+		graph: Graph,
+		updatePreset: (graph: Graph) => void,
+		reloadPresetsFromStorage: () => void
+	) {
 		this.graph = graph
 		this.contextMenu = new ContextMenu()
 		this.updatePreset = updatePreset
 
 		this.offsetStorage = new OffsetStorage()
 		const offsetStorageValue = this.offsetStorage.read()
+		this.reloadPresetsFromStorage = reloadPresetsFromStorage
 
 		if (offsetStorageValue) {
 			this.offsetX = offsetStorageValue.offsetX
 			this.offsetY = offsetStorageValue.offsetY
 		}
+
+		this.windowsManaget = new WindowManager()
+
+		this.windowsManaget.setUpdateOffsetCallback(() => {
+			const offsetStorageValue = this.offsetStorage.read()
+
+			this.offsetX = offsetStorageValue.offsetX ?? 0
+			this.offsetY = offsetStorageValue.offsetY ?? 0
+
+			this.render()
+		})
+
+		this.windowsManaget.setPresetsUpdateCallback(() => {
+			console.log('presets update')
+			this.reloadPresetsFromStorage()
+			this.render()
+		})
+
+		let oldX = window.screenX
+		let oldY = window.screenY
+
+		setInterval(() => {
+			if (oldX != window.screenX || oldY != window.screenY) {
+				this.render()
+			}
+
+			oldX = window.screenX
+			oldY = window.screenY
+		}, 50)
+
+		window.addEventListener('resize', () => {
+			this.render()
+		})
 
 		this.render()
 	}
@@ -357,8 +399,8 @@ class UserInteractionManager {
 
 		render.render(
 			this.graph,
-			this.offsetX,
-			this.offsetY,
+			this.offsetX - window.screenLeft,
+			this.offsetY - window.screenTop,
 			this.pressedKeyCode,
 			this.currentClickedTarget
 		)
@@ -437,7 +479,8 @@ class App {
 	initialize() {
 		const userInteractionManager = new UserInteractionManager(
 			this.graph,
-			this.updatePreset.bind(this)
+			this.updatePreset.bind(this),
+			this.reloadPresetsFromStorage.bind(this)
 		)
 
 		userInteractionManager.initializeApp()
@@ -480,6 +523,14 @@ class App {
 			nodes,
 			edges
 		}
+	}
+
+	reloadPresetsFromStorage() {
+		this.storagePresets = this.storage.read()
+
+		this.graph.graph = this.graph.createGraph(
+			this.storagePresets[this.currentPreset]
+		)
 	}
 
 	updatePreset(graph: Graph) {

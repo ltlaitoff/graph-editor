@@ -1,7 +1,7 @@
 import { StoragePresets } from '../types/StoragePresets.ts'
 
 export class PresetStorage {
-	key = 'coursework'
+	key = 'presets'
 
 	writeAll(data: StoragePresets) {
 		localStorage.setItem(this.key, JSON.stringify(data))
