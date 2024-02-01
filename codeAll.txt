@@ -1,0 +1,2783 @@
+src\main.ts
+import './style.css'
+import { Render } from './modules/Render.ts'
+
+import { resetActiveId } from './helpers'
+import { BFS } from './algorithms/BFS'
+import { DFS } from './algorithms/DFS'
+import { Dijkstra } from './algorithms/Dijkstra.ts'
+import { BellmanFord } from './algorithms/BellmanFord.ts'
+import { FloydWarshall } from './algorithms/FloydWarshall.ts'
+import { NodesByDeepLevel } from './algorithms/NodesByDeepLevel.ts'
+import { DEFAULT_PRESET, MINUS_WEIGHTS_PRESET, WEIGHTS_PRESET } from './presets'
+import { Menu, MenuDivider, MenuItem } from './modules/Menu.ts'
+import { Graph } from './models/Graph.ts'
+import { SidePanel } from './modules/Panel.ts'
+import { Form } from './modules/Form.ts'
+import { EdgesTypes } from './algorithms/EdgesTypes.ts'
+import { ContextItem, ContextMenu } from './modules/ContextMenu.ts'
+import { PresetStorage } from './utils/PresetStorage.ts'
+import { StoragePresets } from './types/StoragePresets.ts'
+import { Preset, PresetEdge } from './types/PresetItem.ts'
+import { OffsetStorage } from './utils/OffsetStorage.ts'
+import WindowManager from './utils/WindowManager.ts'
+
+class UserInteractionManager {
+	graph: Graph
+	offsetX = 0
+	offsetY = -105
+
+	mouseDownValues: {
+		active: boolean
+		target: HTMLElement | null
+		innerOffsetX: number
+		innerOffsetY: number
+	} = {
+		active: false,
+		target: null,
+		innerOffsetX: 0,
+		innerOffsetY: 0
+	}
+
+	currentClickedTarget: HTMLElement | null = null
+
+	pressedKeyCode: string | null = null
+	contextMenu: ContextMenu
+
+	updatePreset: (graph: Graph) => void
+
+	offsetStorage: OffsetStorage
+
+	reloadPresetsFromStorage: () => void
+	windowsManaget
+
+	constructor(
+		graph: Graph,
+		updatePreset: (graph: Graph) => void,
+		reloadPresetsFromStorage: () => void
+	) {
+		this.graph = graph
+		this.contextMenu = new ContextMenu()
+		this.updatePreset = updatePreset
+
+		this.offsetStorage = new OffsetStorage()
+		const offsetStorageValue = this.offsetStorage.read()
+		this.reloadPresetsFromStorage = reloadPresetsFromStorage
+
+		if (offsetStorageValue) {
+			this.offsetX = offsetStorageValue.offsetX
+			this.offsetY = offsetStorageValue.offsetY
+		}
+
+		this.windowsManaget = new WindowManager()
+
+		this.windowsManaget.setUpdateOffsetCallback(() => {
+			const offsetStorageValue = this.offsetStorage.read()
+
+			this.offsetX = offsetStorageValue.offsetX ?? 0
+			this.offsetY = offsetStorageValue.offsetY ?? 0
+
+			this.render()
+		})
+
+		this.windowsManaget.setPresetsUpdateCallback(() => {
+			console.log('presets update')
+			this.reloadPresetsFromStorage()
+			this.render()
+		})
+
+		let oldX = window.screenX
+		let oldY = window.screenY
+
+		setInterval(() => {
+			if (oldX != window.screenX || oldY != window.screenY) {
+				this.render()
+			}
+
+			oldX = window.screenX
+			oldY = window.screenY
+		}, 50)
+
+		window.addEventListener('resize', () => {
+			this.render()
+		})
+
+		this.render()
+	}
+
+	updateOffsetStorage(offsetX: number, offsetY: number) {
+		this.offsetStorage.writeAll({
+			offsetX,
+			offsetY
+		})
+	}
+
+	onKeyDown(event: KeyboardEvent): void {
+		this.pressedKeyCode = event.code
+
+		if (event.code === 'Escape') {
+			this.currentClickedTarget = null
+			this.render()
+		}
+	}
+
+	onKeyUp(event: KeyboardEvent): void {
+		if (this.pressedKeyCode === event.code) {
+			this.pressedKeyCode = null
+			this.render()
+		}
+	}
+
+	onMouseDown(e: MouseEvent) {
+		this.mouseDownValues = {
+			active: true,
+			target: e.target as HTMLElement,
+			innerOffsetX:
+				e.clientX - (e.target as HTMLElement).getBoundingClientRect().x - 20,
+			innerOffsetY:
+				e.clientY - (e.target as HTMLElement).getBoundingClientRect().y - 20
+		}
+	}
+
+	onMouseUp() {
+		this.mouseDownValues = {
+			active: false,
+			target: null,
+			innerOffsetX: 0,
+			innerOffsetY: 0
+		}
+	}
+
+	onMouseMove(e: MouseEvent) {
+		if (!this.mouseDownValues.active) return
+
+		if (this.pressedKeyCode === 'Space') {
+			console.log(e)
+			this.offsetX += e.movementX
+			this.offsetY += e.movementY
+
+			this.updateOffsetStorage(this.offsetX, this.offsetY)
+
+			this.render()
+		} else {
+			if (!this.mouseDownValues.target) return
+			if (!this.mouseDownValues.target.dataset.elementid) return
+			const node = this.graph.graph.get(
+				this.mouseDownValues.target.dataset.elementid
+			)
+
+			if (!node) return
+
+			node.x = e.clientX - this.offsetX - this.mouseDownValues.innerOffsetX
+			node.y = e.clientY - this.offsetY - this.mouseDownValues.innerOffsetY
+
+			this.updatePreset(this.graph)
+			this.render()
+		}
+	}
+
+	onClick(e: MouseEvent) {
+		console.log('click')
+
+		const target = e.target as HTMLElement
+
+		if (target.tagName !== 'svg') {
+			if (target.dataset.edgeTextId !== undefined) {
+				const [adjacentNodeValue, weight, status] =
+					target.dataset.edgeTextId?.split('-') ?? []
+
+				const adjacentNode = this.graph.graph.get(adjacentNodeValue)
+				if (!adjacentNode) return
+
+				const edge = Array.from(adjacentNode.parents.values()).find(
+					edge => edge.weight === Number(weight) && edge.status === status
+				)
+
+				if (!edge) return
+
+				const { top, left } = target.getBoundingClientRect()
+
+				const input = document.createElement('input')
+				input.type = 'number'
+				input.value = String(edge.weight)
+				input.className = 'input-change-weight'
+
+				input.setAttribute(
+					'style',
+					`position:absolute; top: ${top}px; left: ${left}px`
+				)
+
+				input.addEventListener('blur', e => {
+					const value = (e.target as HTMLInputElement).value
+
+					const valueNumber = Number(value)
+
+					console.log(value, valueNumber)
+
+					if (isNaN(valueNumber)) {
+						edge.weight = 0
+					} else {
+						edge.weight = valueNumber
+					}
+
+					this.updatePreset(this.graph)
+					input.remove()
+					this.render()
+				})
+
+				document.body.append(input)
+				input.focus()
+
+				return
+			}
+
+			if (target.dataset.elementid) {
+				console.log('currentClikedTarget: ', this.currentClickedTarget)
+
+				if (
+					this.currentClickedTarget !== null &&
+					this.currentClickedTarget !== e.target
+				) {
+					const nodePrev = this.graph.graph.get(
+						this.currentClickedTarget.dataset.elementid || ''
+					)
+
+					const nodeCurrent = this.graph.graph.get(
+						target.dataset.elementid || ''
+					)
+
+					if (!nodePrev || !nodeCurrent) return
+
+					this.graph.toggleEdge(nodePrev, nodeCurrent)
+					this.updatePreset(this.graph)
+
+					// const findedEdge = [...nodePrev.edges].find(edge => {
+					// 	return edge.adjacentNode === nodeCurrent
+					// })
+
+					// if (!findedEdge) {
+					// 	nodePrev.edges.add(new Edge(nodeCurrent, 1))
+					// } else {
+					// 	nodePrev.edges.delete(findedEdge)
+					// }
+
+					this.currentClickedTarget = null
+
+					this.render()
+					return
+				}
+
+				this.currentClickedTarget = target
+
+				this.render()
+			}
+
+			return
+		}
+
+		console.log(e)
+		console.log({
+			x: e.x,
+			y: e.y,
+			offsetX: this.offsetX,
+			offsetY: this.offsetY
+		})
+
+		const lastElement = [...this.graph.graph.values()].reduce((acc, node) => {
+			const asNumber = Number(node.value)
+
+			if (isNaN(asNumber)) {
+				return acc
+			}
+
+			return asNumber > acc ? asNumber : acc
+		}, -1)
+
+		this.graph.addOrGetNode(
+			this.graph.graph,
+			String(lastElement + 1),
+			e.clientX - this.offsetX,
+			e.clientY - this.offsetY
+		)
+		this.updatePreset(this.graph)
+
+		this.render()
+	}
+
+	getTypeOfContextMenu(e: MouseEvent) {
+		if ((e.target as HTMLElement).dataset.elementid) {
+			return 'node'
+		}
+
+		return 'back'
+	}
+
+	onContextMenu(e: MouseEvent) {
+		e.preventDefault()
+
+		const typeOfContextMenu = this.getTypeOfContextMenu(e)
+
+		if (typeOfContextMenu === 'node') {
+			if (!(e.target as HTMLElement).dataset.elementid) return
+
+			const nodeId = (e.target as HTMLElement).dataset.elementid || ''
+
+			this.contextMenu.addItem(
+				new ContextItem(
+					'Delete node',
+					async (_, nodeId) => {
+						const node = this.graph.graph.get(nodeId)
+
+						if (!node) return
+
+						this.graph.graph.forEach(graphNode => {
+							graphNode.edges = new Set(
+								[...graphNode.edges].filter(edge => {
+									return edge.adjacentNode !== node
+								})
+							)
+						})
+
+						this.graph.graph.delete(nodeId)
+						this.updatePreset(this.graph)
+
+						this.contextMenu.close()
+						this.render()
+					},
+					nodeId,
+					{
+						name: 'X',
+						code: 'KeyX'
+					}
+				)
+			)
+		}
+
+		if (typeOfContextMenu === 'back') {
+			this.contextMenu.addItem(
+				new ContextItem(
+					'Add new node',
+					async () => {
+						const lastElement = [...this.graph.graph.values()].reduce(
+							(acc, node) => {
+								const asNumber = Number(node.value)
+
+								if (isNaN(asNumber)) {
+									return acc
+								}
+
+								return asNumber > acc ? asNumber : acc
+							},
+							-1
+						)
+
+						this.graph.addOrGetNode(
+							this.graph.graph,
+							String(lastElement + 1),
+							e.clientX - this.offsetX,
+							e.clientY - this.offsetY
+						)
+						this.updatePreset(this.graph)
+
+						this.contextMenu.close()
+						this.render()
+					},
+					null,
+					{
+						name: 'A',
+						code: 'KeyA'
+					}
+				)
+			)
+		}
+
+		this.contextMenu.changePosition(e.clientX, e.clientY)
+		this.contextMenu.renderItems()
+	}
+
+	render() {
+		const render = new Render()
+
+		render.render(
+			this.graph,
+			this.offsetX - window.screenLeft,
+			this.offsetY - window.screenTop,
+			this.pressedKeyCode,
+			this.currentClickedTarget
+		)
+	}
+
+	initializeApp() {
+		this.#initializeUserEvents()
+	}
+
+	#initializeUserEvents() {
+		document.addEventListener('mousedown', (e: MouseEvent) => {
+			if (this.contextMenu.open) {
+				this.contextMenu.close()
+				return
+			}
+
+			this.onMouseDown(e)
+		})
+		document.addEventListener('mouseup', () => this.onMouseUp())
+		document.addEventListener('mousemove', (e: MouseEvent) =>
+			this.onMouseMove(e)
+		)
+
+		document.addEventListener('contextmenu', (e: MouseEvent) =>
+			this.onContextMenu(e)
+		)
+		document.addEventListener('click', (e: MouseEvent) => {
+			if (this.contextMenu.open) {
+				this.contextMenu.close()
+				return
+			}
+
+			this.onClick(e)
+		})
+
+		document.addEventListener('keydown', (e: KeyboardEvent) => {
+			if (this.contextMenu.open) {
+				if (e.code === 'Escape') {
+					this.contextMenu.close()
+					return
+				}
+
+				this.contextMenu.keyPressed(e.code)
+				return
+			}
+
+			this.onKeyDown(e)
+		})
+		document.addEventListener('keyup', (e: KeyboardEvent) => this.onKeyUp(e))
+	}
+}
+
+class App {
+	graph: Graph
+	currentPreset: string = '1'
+	render: () => void = () => {}
+	menu: Menu | null = null
+	storage: PresetStorage
+	storagePresets: StoragePresets
+
+	constructor() {
+		this.graph = new Graph()
+
+		this.storage = new PresetStorage()
+
+		if (this.storage.read() === null) {
+			this.initializeDefaultPresets()
+		}
+
+		this.storagePresets = this.storage.read()
+		this.graph.graph = this.graph.createGraph(
+			this.storagePresets[this.currentPreset]
+		)
+	}
+
+	initialize() {
+		const userInteractionManager = new UserInteractionManager(
+			this.graph,
+			this.updatePreset.bind(this),
+			this.reloadPresetsFromStorage.bind(this)
+		)
+
+		userInteractionManager.initializeApp()
+
+		this.render = userInteractionManager.render.bind(userInteractionManager)
+		this.menu = this.initializeMenu()
+		this.initializeHidePanelButton()
+	}
+
+	graphToPreset(graph: Graph): Preset {
+		const nodes = Array.from(graph.graph.values()).map(nodeInfo => {
+			return {
+				value: nodeInfo.value,
+				x: nodeInfo.x ?? 0,
+				y: nodeInfo.y ?? 0
+			}
+		})
+
+		const edges = Array.from(graph.graph.values())
+			.map(node => {
+				const base = {
+					from: node.value
+				}
+
+				return Array.from(node.edges)
+					.map(edge => {
+						if (edge.status === 'no-direction') return null
+
+						return {
+							...base,
+							to: edge.adjacentNode.value,
+							weight: edge.weight
+						}
+					})
+					.filter(item => item !== null) as PresetEdge[]
+			})
+			.flat()
+
+		return {
+			nodes,
+			edges
+		}
+	}
+
+	reloadPresetsFromStorage() {
+		this.storagePresets = this.storage.read()
+
+		this.graph.graph = this.graph.createGraph(
+			this.storagePresets[this.currentPreset]
+		)
+	}
+
+	updatePreset(graph: Graph) {
+		this.storagePresets[this.currentPreset] = this.graphToPreset(graph)
+
+		this.storage.writeAll(this.storagePresets)
+		this.storagePresets = this.storage.read()
+	}
+
+	initializeHidePanelButton() {
+		const hidePanelButton = document.querySelector('#hidePanelButton')
+		if (!hidePanelButton) return
+
+		hidePanelButton.addEventListener('click', e => {
+			e.stopPropagation()
+
+			if (!this.menu) return
+
+			this.menu.section.classList.toggle('menu--hidden')
+			;(e.currentTarget as HTMLElement).classList.toggle('hide-menu--active')
+		})
+	}
+
+	graphNodesStatusResetter(id: number) {
+		if (window.algorithmActiveId !== id) return
+
+		this.graph.graph.forEach(node => {
+			if (window.algorithmActiveId !== id) return
+
+			node.status = 'default'
+		})
+
+		this.render()
+	}
+
+	graphEdgesTypeResetter(id: number) {
+		if (window.algorithmActiveId !== id) return
+
+		this.graph.graph.forEach(node => {
+			if (window.algorithmActiveId !== id) return
+
+			node.edges.forEach(edge => {
+				edge.type = 'default'
+			})
+		})
+
+		this.render()
+	}
+
+	async algorithmWrapper(callback: () => Promise<void>) {
+		resetActiveId()
+
+		this.graphNodesStatusResetter(window.algorithmActiveId)
+
+		await callback()
+
+		this.graphNodesStatusResetter(window.algorithmActiveId)
+	}
+
+	initializeDefaultPresets() {
+		this.storage.writeAll({
+			'1': DEFAULT_PRESET,
+			'2': WEIGHTS_PRESET,
+			'3': MINUS_WEIGHTS_PRESET,
+			'4': {
+				nodes: [],
+				edges: []
+			}
+		})
+	}
+
+	initializeMenu() {
+		const menu = new Menu()
+
+		const bfsElement = new MenuItem(
+			'bfs',
+			async () => {
+				this.algorithmWrapper(async () => {
+					const bfsAlgorithm = new BFS(this.graph, this.render)
+					await bfsAlgorithm.bfsWrapper(window.algorithmActiveId)
+				})
+			},
+			true
+		)
+
+		const dfsElement = new MenuItem(
+			'dfs',
+			async () => {
+				this.algorithmWrapper(async () => {
+					const dfsAlgorithm = new DFS(this.graph, this.render)
+					await dfsAlgorithm.dfsWrapper(window.algorithmActiveId)
+				})
+			},
+			true
+		)
+
+		const resetElement = new MenuItem('reset', async () => {
+			window.algorithmActiveId = -1
+
+			this.graphNodesStatusResetter(window.algorithmActiveId)
+			this.graphEdgesTypeResetter(window.algorithmActiveId)
+		})
+
+		const modeElement = new MenuItem('directed', async target => {
+			if (this.graph.mode === 'directed') {
+				this.graph.mode = 'undirected'
+			} else {
+				this.graph.mode = 'directed'
+			}
+
+			target.textContent = this.graph.mode
+			this.render()
+		})
+
+		const changeGraphPreset = new MenuItem(this.currentPreset, async target => {
+			const presetValues = Object.keys(this.storagePresets)
+
+			console.log(presetValues)
+
+			const index = presetValues.indexOf(this.currentPreset)
+
+			const next =
+				index === presetValues.length - 1
+					? presetValues[0]
+					: presetValues[index + 1]
+
+			console.log(target, next)
+
+			if (!next) return
+
+			target.textContent = next
+			this.currentPreset = next
+			this.graph.graph = this.graph.createGraph(this.storagePresets[next])
+
+			this.render()
+		})
+
+		const weightElement = new MenuItem('weight', async target => {
+			if (this.graph.weights === true) {
+				this.graph.weights = false
+			} else {
+				this.graph.weights = true
+			}
+
+			target.textContent = this.graph.weights ? 'w' : 'nw'
+
+			this.render()
+		})
+
+		const sidePanel = new SidePanel('panel')
+
+		const settingsElement = new MenuItem('S', async () => {
+			const FORM_KEY = 'deep'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
+			}
+
+			const resetAllPresets = document.createElement('button')
+			resetAllPresets.className = 'button'
+			resetAllPresets.textContent = 'Reset all presets'
+
+			const getTable = () => {
+				const nodes = Array.from(this.graph.graph.values())
+				const numNodes = nodes.length
+
+				const distances: number[][] = Array.from({ length: numNodes }, () =>
+					Array(numNodes).fill(Infinity)
+				)
+
+				nodes.forEach((node, i) => {
+					distances[i][i] = 0
+
+					node.edges.forEach(edge => {
+						if (
+							this.graph.mode === 'directed' &&
+							edge.status === 'no-direction'
+						) {
+							return
+						}
+
+						const j = nodes.indexOf(edge.adjacentNode)
+
+						distances[i][j] = edge.weight
+					})
+				})
+
+				const text = [
+					`<tr>${[{ value: '' }, ...nodes]
+						.map(
+							node =>
+								'<th class="table-cell table-cell--head">' +
+								node.value +
+								'</th>'
+						)
+						.join('\n')}</tr>`,
+					...distances.map((item, index) => {
+						const result: string[] = [
+							`<th class="table-cell table-cell--head">${nodes[index].value}</th>`,
+							...item.map(subItem => {
+								if (subItem === Infinity) {
+									return `<td class="table-cell"></td>`
+								}
+
+								return `<td class="table-cell">${subItem}</td>`
+							})
+						]
+
+						return `<tr>${result.join('\n')}</tr>`
+					})
+				]
+
+				const table = document.createElement('table')
+				table.className = 'table'
+				table.innerHTML = text.join('\n')
+
+				return table
+			}
+
+			let table = getTable()
+
+			const rerenderTable = document.createElement('button')
+			rerenderTable.className = 'button'
+			rerenderTable.textContent = 'Update table'
+			rerenderTable.setAttribute('style', 'margin-top: 10px')
+
+			rerenderTable.addEventListener('click', () => {
+				const oldTable = table
+				table = getTable()
+
+				oldTable.replaceWith(table)
+			})
+
+			const result = document.createElement('div')
+			result.append(resetAllPresets)
+			result.append(table)
+			result.append(rerenderTable)
+
+			sidePanel.renderForm(result, FORM_KEY)
+			sidePanel.open()
+		})
+
+		const deepElement = new MenuItem('deep', async () => {
+			const FORM_KEY = 'deep'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
+			}
+
+			const deepForm = new Form('Deep level', async data => {
+				const startNode = this.graph.graph.get(data.startNodeId)
+				if (!startNode || data.endNodeId === undefined) return
+
+				resetActiveId()
+				startNode.status = 'done'
+
+				const maxLevel = Number(data.endNodeId) || 2
+
+				const nodesByDeepLevel = new NodesByDeepLevel(this.graph, this.render)
+
+				const value = await nodesByDeepLevel.getNodesByDeepLevel(
+					startNode,
+					[],
+					window.algorithmActiveId,
+					maxLevel
+				)
+
+				console.log(value)
+
+				this.graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			deepForm.addInput('startNodeId', 'Start node id:')
+			deepForm.addInput('endNodeId', 'Deep level:')
+
+			sidePanel.renderForm(deepForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		const idk1Element = new MenuItem('idk-1', async () => {
+			const FORM_KEY = 'idk-1'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
+			}
+
+			const deepForm = new Form('IDK-1', async data => {
+				const startNode = this.graph.graph.get(data.startNodeId)
+				if (!startNode) return
+
+				resetActiveId()
+				startNode.status = 'done'
+
+				const edgesTypes = new EdgesTypes(this.render, this.graph)
+
+				const value = await edgesTypes.edgesTypes(window.algorithmActiveId)
+
+				// TODO: Add checkbox auto reset
+				// TODO: Add use node in algorithm
+
+				console.log(value)
+
+				this.graphEdgesTypeResetter(window.algorithmActiveId)
+				this.graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			deepForm.addInput('startNodeId', 'Start node id:')
+
+			sidePanel.renderForm(deepForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		const bellmanFordElement = new MenuItem('bellmanFord', async () => {
+			const FORM_KEY = 'bellmanFord'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
+			}
+
+			const bellmanFordForm = new Form('Bellman Ford', async data => {
+				const startNode = this.graph.graph.get(data.startNodeId)
+				if (!startNode) return
+
+				resetActiveId()
+				startNode.status = 'done'
+
+				const bellmanFord = new BellmanFord(this.graph)
+
+				const distances = await bellmanFord.bellmanFord(startNode)
+
+				if (distances) {
+					const result = [...distances.entries()].reduce(
+						(acc, [node, distance]) => {
+							return {
+								...acc,
+								[node.value]: distance
+							}
+						},
+						{}
+					)
+
+					console.log(result)
+					bellmanFordForm.renderCustomOutput(JSON.stringify(result, null, 2))
+				} else {
+					bellmanFordForm.renderCustomOutput('Paths not found')
+				}
+
+				this.graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			bellmanFordForm.addInput('startNodeId', 'Start node id:')
+
+			sidePanel.renderForm(bellmanFordForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		const dijkstraElement = new MenuItem('dijkstra', async () => {
+			const FORM_KEY = 'dijkstra'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
+			}
+
+			const dijkstraForm = new Form('Dijkstra', async data => {
+				const startNode = this.graph.graph.get(data.startNodeId)
+				const endNode = this.graph.graph.get(data.endNodeId)
+
+				if (!startNode || !endNode) return
+
+				resetActiveId()
+
+				startNode.status = 'done'
+				endNode.status = 'done'
+
+				const dijkstra = new Dijkstra(this.graph, this.render)
+				const result = await dijkstra.dijkstra(startNode, endNode)
+
+				console.log(result)
+				if (result === null) {
+					dijkstraForm.renderCustomOutput('Not found!')
+				} else {
+					dijkstraForm.renderCustomOutput(
+						result?.map(item => item.value).join(' -> ')
+					)
+				}
+
+				this.graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			dijkstraForm.addInput('startNodeId', 'Start node id:')
+			dijkstraForm.addInput('endNodeId', 'End node id:')
+
+			sidePanel.renderForm(dijkstraForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		const floydWarshallElement = new MenuItem('floydWarshall', async () => {
+			const FORM_KEY = 'floydWarshall'
+
+			if (sidePanel.formId === FORM_KEY && sidePanel.opened) {
+				sidePanel.close()
+				return
+			}
+
+			const floydWarshallForm = new Form('Floyd Warshall', async () => {
+				resetActiveId()
+
+				const nodes = Array.from(this.graph.graph.values()).sort((a, b) => {
+					return Number(a.value) - Number(b.value)
+				})
+				console.log('%c⧭', 'color: #731d1d', nodes)
+
+				const floydWarshall = new FloydWarshall(this.graph)
+				const result = await floydWarshall.floydWarshall(nodes)
+
+				result.unshift([])
+				result.unshift(nodes.map(node => node.value))
+
+				const text = JSON.stringify(
+					[
+						...result.map(item => {
+							const tmp: string[] = []
+
+							item.map(subItem => {
+								let s = String(subItem)
+
+								if (subItem === Infinity) {
+									s = '-'
+								}
+
+								if (s.length < 2) {
+									s = ' ' + s
+								}
+
+								if (s.length < 3 && s.length === 2) {
+									s = ' ' + s
+								}
+
+								tmp.push(s)
+							})
+
+							return tmp.join(',')
+						})
+					],
+					null,
+					2
+				)
+
+				floydWarshallForm.renderCustomOutput(text)
+
+				this.graphNodesStatusResetter(window.algorithmActiveId)
+			})
+
+			sidePanel.renderForm(floydWarshallForm.getForRender(), FORM_KEY)
+			sidePanel.open()
+		})
+
+		menu.addItem(bfsElement)
+		menu.addItem(dfsElement)
+		menu.addItem(new MenuDivider())
+		menu.addItem(resetElement, 'rose')
+		menu.addItem(modeElement, 'indigo')
+		menu.addItem(changeGraphPreset, 'sky')
+		menu.addItem(weightElement, 'amber')
+		menu.addItem(settingsElement, 'teal')
+		menu.addItem(new MenuDivider())
+		menu.addItem(deepElement)
+		menu.addItem(idk1Element)
+		menu.addItem(bellmanFordElement)
+		menu.addItem(dijkstraElement)
+		menu.addItem(floydWarshallElement)
+
+		menu.render()
+		return menu
+	}
+}
+
+const app = new App()
+
+app.initialize()
+
+
+src\vite-env.d.ts
+/// <reference types="vite/client" />
+
+
+src\algorithms\BellmanFord.ts
+import { Node } from '../models/Node.ts'
+import { Graph } from '../models/Graph.ts'
+
+export class BellmanFord {
+	graph: Graph
+
+	constructor(graph: Graph) {
+		this.graph = graph
+	}
+
+	async bellmanFord(startNode: Node) {
+		const distances = new Map<Node, number>()
+
+		for (const node of this.graph.graph.values()) {
+			distances.set(node, Infinity)
+		}
+
+		distances.set(startNode, 0)
+
+		for (let i = 0; i < this.graph.graph.size; i++) {
+			for (const currentNode of [...this.graph.graph.values()]) {
+				for (const edge of currentNode.edges) {
+					if (
+						this.graph.mode === 'directed' &&
+						edge.status === 'no-direction'
+					) {
+						continue
+					}
+
+					const newDistance = distances.get(currentNode)! + edge.weight
+
+					if (newDistance < distances.get(edge.adjacentNode)!) {
+						distances.set(edge.adjacentNode, newDistance)
+					}
+				}
+			}
+		}
+
+		for (const currentNode of this.graph.graph.values()) {
+			if (currentNode === startNode) {
+				continue
+			}
+
+			for (const edge of currentNode.edges) {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+					continue
+				}
+
+				if (
+					distances.get(currentNode)! + edge.weight <
+					distances.get(edge.adjacentNode)!
+				) {
+					console.error('Graph contains a negative cycle.')
+					return
+				}
+			}
+		}
+
+		return distances
+	}
+}
+
+
+
+## BellmanFord
+
+{
+    graph: Graph;
+    bellmanFord: (startNode: Node) => Promise<Map<Node, number> | undefined>;
+}
+
+src\algorithms\BFS.ts
+import { Node } from '../models/Node.ts'
+import { sleep, setNodeStatus } from '../helpers'
+import { DELAY } from '../config/delay.ts'
+import { Graph, GraphValue } from '../models/Graph.ts'
+
+class TreeNode {
+	value: GraphValue
+	childrens: TreeNode[] = []
+
+	constructor(value: GraphValue) {
+		this.value = value
+	}
+
+	find(node: TreeNode, value: GraphValue): TreeNode | undefined {
+		if (node.value === value) return node
+
+		for (const child of node.childrens) {
+			const result = this.find(child, value)
+
+			if (result) {
+				return result
+			}
+		}
+
+		return undefined
+	}
+
+	add(node: TreeNode) {
+		this.childrens.push(node)
+	}
+}
+
+class Tree {
+	root: TreeNode
+
+	constructor(value: GraphValue) {
+		this.root = new TreeNode(value)
+	}
+
+	add(node: GraphValue, value: GraphValue) {
+		const prevNode = this.root.find(this.root, node)
+
+		if (!prevNode) return
+
+		prevNode.add(new TreeNode(value))
+	}
+
+	display() {
+		console.log(this.root)
+	}
+}
+
+export class BFS {
+	graph: Graph
+	render: () => void
+
+	constructor(graph: Graph, render: () => void) {
+		this.graph = graph
+		this.render = render
+	}
+
+	async bfsWrapper(id: number) {
+		const visited: Node[] = []
+
+		for (const item of this.graph.graph.values()) {
+			if (!visited.includes(item)) {
+				if (window.algorithmActiveId !== id) {
+					return
+				}
+
+				await this.bfs(item, visited, id)
+			}
+		}
+
+		this.render()
+	}
+
+	async bfs(node: Node, visited: Node[], id: number) {
+		const tree = new Tree(node.value)
+
+		const queue = [node]
+
+		while (queue.length > 0) {
+			if (window.algorithmActiveId !== id) {
+				return
+			}
+
+			const item = queue.shift()
+			if (!item) return null
+
+			visited.push(item)
+
+			item.edges.forEach(edge => {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction')
+					return
+
+				const adjacentNode = edge.adjacentNode
+
+				if (!visited.includes(adjacentNode) && !queue.includes(adjacentNode)) {
+					tree.add(item.value ?? -1, adjacentNode.value ?? -1)
+					queue.push(adjacentNode)
+				}
+			})
+
+			await setNodeStatus(
+				item,
+				{
+					status: 'progress',
+					sleep: false
+				},
+				this.render
+			)
+			await sleep(DELAY)
+		}
+
+		tree.display()
+
+		this.render()
+	}
+}
+
+
+src\algorithms\DFS.ts
+import { Node } from '../models/Node.ts'
+import { sleep, setNodeStatus } from '../helpers'
+import { DELAY } from '../config/delay.ts'
+import { Graph } from '../models/Graph.ts'
+
+export class DFS {
+	graph: Graph
+	render: () => void
+
+	constructor(graph: Graph, render: () => void) {
+		this.graph = graph
+		this.render = render
+	}
+
+	async dfsWrapper(id: number) {
+		const visited: Node[] = []
+
+		for (const item of this.graph.graph.values()) {
+			if (!visited.includes(item)) {
+				if (window.algorithmActiveId !== id) {
+					return
+				}
+
+				await this.dfs(item, visited, id)
+			}
+		}
+
+		this.render()
+	}
+
+	async dfs(node: Node, visited: Node[], id: number) {
+		const jungle: Node[] = []
+		const stack = [node]
+
+		while (stack.length > 0) {
+			if (window.algorithmActiveId !== id) {
+				return
+			}
+
+			const item = stack.pop()
+			if (!item) return null
+
+			visited.push(item)
+			jungle.push(item)
+			;[...item.edges].toReversed().forEach(edge => {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+					return
+				}
+
+				const adjacentNode = edge.adjacentNode
+
+				if (!visited.includes(adjacentNode) && !stack.includes(adjacentNode)) {
+					stack.push(adjacentNode)
+				}
+			})
+
+			await setNodeStatus(
+				item,
+				{
+					status: 'progress',
+					sleep: false
+				},
+				this.render
+			)
+
+			await sleep(DELAY)
+		}
+
+		this.render()
+
+		console.log('DFS:', jungle.map(item => item.value).join(', 	'))
+	}
+}
+
+
+src\algorithms\Dijkstra.ts
+import { Node } from '../models/Node.ts'
+import { setNodeStatus } from '../helpers'
+import { Graph } from '../models/Graph.ts'
+
+export class Dijkstra {
+	render: () => void
+	graph: Graph
+
+	constructor(graph: Graph, render: () => void) {
+		this.graph = graph
+		this.render = render
+	}
+
+	async initHashTables(
+		start: Node,
+		unprocessedNodes: Set<Node>,
+		timeToNodes: Map<Node, number>
+	) {
+		for (const node of this.graph.graph.values()) {
+			unprocessedNodes.add(node)
+			timeToNodes.set(node, Infinity)
+		}
+
+		timeToNodes.set(start, 0)
+	}
+
+	async getNodeWithMinTime(
+		unprocessedNodes: Set<Node>,
+		timeToNodes: Map<Node, number>
+	) {
+		let nodeWithMinTime: Node | null = null
+
+		let minTime = Infinity
+
+		for (const node of unprocessedNodes) {
+			const time = timeToNodes.get(node)
+
+			if (time !== undefined && time < minTime) {
+				minTime = time
+				nodeWithMinTime = node
+			}
+		}
+
+		return nodeWithMinTime
+	}
+
+	async calculateTimeToEachNode(
+		unprocessedNodes: Set<Node>,
+		timeToNodes: Map<Node, number>
+	) {
+		while (unprocessedNodes.size > 0) {
+			const node = await this.getNodeWithMinTime(unprocessedNodes, timeToNodes)
+
+			if (!node) return
+			if (timeToNodes.get(node) === Infinity) return
+
+			await setNodeStatus(
+				node,
+				{
+					status: 'progress',
+					statusForChange: 'default'
+				},
+				this.render
+			)
+
+			for (const edge of node.edges) {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+					continue
+				}
+
+				const adjacentNode = edge.adjacentNode
+
+				if (unprocessedNodes.has(adjacentNode)) {
+					const nodeTime = timeToNodes.get(node)
+					if (nodeTime === undefined) continue
+
+					const adjacentNodeTime = timeToNodes.get(adjacentNode)
+					if (adjacentNodeTime === undefined) continue
+
+					const timeToCheck = nodeTime + edge.weight
+
+					if (timeToCheck < adjacentNodeTime) {
+						timeToNodes.set(adjacentNode, timeToCheck)
+					}
+				}
+			}
+
+			unprocessedNodes.delete(node)
+		}
+	}
+
+	async getShortestPath(
+		start: Node,
+		end: Node,
+		timeToNodes: Map<Node, number>
+	) {
+		const path = []
+		let node = end
+
+		while (node !== start) {
+			const minTimeToNode = timeToNodes.get(node)
+			path.unshift(node)
+
+			for (const [parent, parentEdge] of node.parents.entries()) {
+				if (timeToNodes.has(parent) === undefined) continue
+
+				const previousNodeFound =
+					Number(parentEdge.weight + (timeToNodes.get(parent) ?? 0)) ===
+					minTimeToNode
+
+				if (previousNodeFound) {
+					timeToNodes.delete(node)
+					node = parent
+					break
+				}
+			}
+		}
+
+		path.unshift(node)
+		return path
+	}
+
+	async dijkstra(start: Node, end: Node) {
+		const unprocessedNodes = new Set<Node>()
+		const timeToNodes = new Map<Node, number>()
+
+		await this.initHashTables(start, unprocessedNodes, timeToNodes)
+		await this.calculateTimeToEachNode(unprocessedNodes, timeToNodes)
+
+		if (timeToNodes.get(end) === Infinity) return null
+		return await this.getShortestPath(start, end, timeToNodes)
+	}
+}
+
+
+src\algorithms\EdgesTypes.ts
+import { setNodeStatus } from '../helpers'
+import { Graph } from '../models/Graph'
+import { Node } from '../models/Node'
+
+export class EdgesTypes {
+	graph: Graph
+	render: () => void
+
+	constructor(render: () => void, graph: Graph) {
+		this.render = render
+		this.graph = graph
+	}
+
+	async edgesTypes(id: number) {
+		const visited: Node[] = []
+		const startTime: Map<Node, number> = new Map()
+		const endTime: Map<Node, number> = new Map()
+		const state: { time: number } = { time: 0 }
+
+		for (const item of this.graph.graph.values()) {
+			if (!visited.includes(item)) {
+				if (window.algorithmActiveId !== id) {
+					return
+				}
+
+				await this.edgesTypesInner(item, visited, startTime, endTime, state, id)
+			}
+		}
+
+		console.log(startTime.size, endTime.size)
+
+		this.render()
+	}
+
+	async edgesTypesInner(
+		node: Node,
+		visited: Node[],
+		startTime: Map<Node, number>,
+		endTime: Map<Node, number>,
+		state: { time: number },
+		id: number
+	) {
+		const jungle: Node[] = []
+
+		if (window.algorithmActiveId !== id) {
+			return
+		}
+
+		if (!node) return null
+
+		startTime.set(node, state.time)
+		state.time++
+
+		visited.push(node)
+		jungle.push(node)
+
+		for (const edge of [...node.edges].toReversed()) {
+			if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+				continue
+			}
+
+			const adjacentNode = edge.adjacentNode
+
+			// if (item.value === 8) debugger
+
+			if (!visited.includes(adjacentNode)) {
+				console.log(
+					'Tree Edge: ' + node.value + '-->' + adjacentNode.value + '<br>'
+				)
+
+				edge.type = 'default'
+
+				await this.edgesTypesInner(
+					adjacentNode,
+					visited,
+					startTime,
+					endTime,
+					state,
+					id
+				)
+			} else {
+				// if parent node is traversed after the neighbour node
+
+				const itemStartTime = startTime.get(node) ?? -1
+				const adjacentStartTime = startTime.get(adjacentNode) ?? -1
+				const itemEndTime = endTime.get(node) ?? -1
+				const adjacentEndTime = endTime.get(adjacentNode) ?? -1
+
+				console.table({
+					value: node.value,
+					// startTime: startTime,
+					// endTime: JSendTime,
+					adjacentNode: adjacentNode.value,
+					itemStartTime: itemStartTime,
+					adjacentStartTime: adjacentStartTime,
+					itemEndTime: itemEndTime,
+					adjacentEndTime: adjacentEndTime
+				})
+
+				if (itemStartTime >= adjacentStartTime && adjacentEndTime === -1) {
+					console.log(
+						'Back Edge: ' + node.value + '-->' + adjacentNode.value + '<br>'
+					)
+					edge.type = 'back'
+				}
+
+				// if the neighbour node is a  but not a part of the tree
+				else if (itemStartTime < adjacentStartTime && adjacentEndTime !== -1) {
+					console.log(
+						'Forward Edge: ' + node.value + '-->' + adjacentNode.value + '<br>'
+					)
+					edge.type = 'forward'
+				}
+
+				// if parent and neighbour node do not
+				// have any ancestor and descendant relationship between them
+				else {
+					console.log(
+						'Cross Edge: ' + node.value + '-->' + adjacentNode.value + '<br>'
+					)
+					edge.type = 'cross'
+				}
+			}
+		}
+
+		endTime.set(node, state.time)
+		state.time++
+
+		await setNodeStatus(
+			node,
+			{
+				status: 'progress',
+				renderBeforeSleep: true
+			},
+			this.render.bind(this)
+		)
+
+		this.render()
+
+		// console.log('DFS:', jungle.map(item => item.value).join(', 	'))
+	}
+}
+
+
+src\algorithms\FloydWarshall.ts
+import { Node } from '../models/Node.ts'
+import { Graph } from '../models/Graph.ts'
+
+export class FloydWarshall {
+	graph: Graph
+
+	constructor(graph: Graph) {
+		this.graph = graph
+	}
+
+	floydWarshall(nodes: Node[]) {
+		const numNodes = nodes.length
+
+		const distances = Array.from({ length: numNodes }, () =>
+			Array(numNodes).fill(Infinity)
+		)
+
+		nodes.forEach((node, i) => {
+			distances[i][i] = 0
+
+			node.edges.forEach(edge => {
+				if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+					return
+				}
+
+				const j = nodes.indexOf(edge.adjacentNode)
+
+				distances[i][j] = edge.weight
+			})
+		})
+
+		for (let i = 0; i < numNodes; i++) {
+			for (let j = 0; j < numNodes; j++) {
+				for (let k = 0; k < numNodes; k++) {
+					if (distances[j][i] + distances[i][k] < distances[j][k]) {
+						distances[j][k] = distances[j][i] + distances[i][k]
+					}
+				}
+			}
+		}
+
+		nodes.forEach((nodeTop, i) => {
+			nodes.forEach((nodeBottom, j) => {
+				const result = distances[i][j]
+
+				if (result === Infinity) return
+
+				console.log(`${nodeTop.value} => ${nodeBottom.value}: ${result}`)
+			})
+		})
+
+		return distances
+	}
+}
+
+
+src\algorithms\NodesByDeepLevel.ts
+import { Node } from '../models/Node.ts'
+import { sleep } from '../helpers'
+import { DELAY } from '../config/delay.ts'
+import { Graph } from '../models/Graph.ts'
+
+export class NodesByDeepLevel {
+	graph: Graph
+	render: () => void
+
+	constructor(graph: Graph, render: () => void) {
+		this.graph = graph
+		this.render = render
+	}
+
+	async getNodesByDeepLevel(
+		node: Node,
+		visited: Node[],
+		id: number,
+		maxLevel = 2,
+		level = 0
+	) {
+		if (level > maxLevel) return []
+
+		visited.push(node)
+
+		node.status = 'progress'
+
+		this.render()
+
+		await sleep(DELAY)
+
+		const result: (string | null)[] = []
+
+		for (const edge of node.edges) {
+			if (this.graph.mode === 'directed' && edge.status === 'no-direction') {
+				continue
+			}
+
+			if (visited.includes(edge.adjacentNode)) {
+				continue
+			}
+
+			if (window.algorithmActiveId !== id) {
+				return
+			}
+
+			const nodes = await this.getNodesByDeepLevel(
+				edge.adjacentNode,
+				visited,
+				id,
+				maxLevel,
+				level + 1
+			)
+
+			if (nodes === undefined) {
+				continue
+			}
+
+			result.push(...nodes)
+		}
+
+		return [node.value, ...result].flat()
+	}
+}
+
+
+src\config\defineWindowVariables.ts
+export {}
+
+declare global {
+	interface Window {
+		DEBUG: boolean
+		algorithmActiveId: number
+		render: () => void
+	}
+}
+
+window.DEBUG = false
+window.algorithmActiveId = -1
+window.render = () => {}
+
+
+src\config\delay.ts
+export const DELAY = 200
+
+
+src\config\nodeColors.ts
+export const NODE_COLORS = {
+	default: 'white',
+	checked: 'var(--color-red-300)',
+	progress: 'var(--color-yellow-300)',
+	done: 'var(--color-green-300)',
+	passed: 'var(--color-slate-300)'
+}
+
+
+src\helpers\index.ts
+export { sleep } from './sleep'
+export { setNodeStatus } from './setNodeStatus'
+export { resetActiveId } from './resetActiveId'
+
+
+src\helpers\resetActiveId.ts
+export const resetActiveId = () => {
+	const activeId = new Date().getTime()
+	window.algorithmActiveId = activeId
+}
+
+
+src\helpers\setNodeStatus.ts
+import { Node } from '../models/Node.ts'
+import { sleep } from './sleep.ts'
+import { DELAY } from '../config/delay.ts'
+
+export async function setNodeStatus(
+	node: Node,
+	params: {
+		status?: Node['status']
+		sleep?: boolean
+		render?: boolean
+		statusForChange?: Node['status'] | 'any'
+		renderBeforeSleep?: boolean
+	} = {},
+	render: () => void
+) {
+	const status = params.status ?? 'default'
+	const sleepFlag = params.sleep ?? true
+	const renderProp = params.render ?? true
+	const statusForChange = params.statusForChange ?? node.status
+	const renderBeforeSleep = params.renderBeforeSleep ?? false
+
+	if (statusForChange && statusForChange === node.status) {
+		node.status = status
+	}
+
+	if (renderProp && renderBeforeSleep) {
+		render()
+	}
+
+	if (sleepFlag) {
+		await sleep(DELAY)
+	}
+
+	if (renderProp && !renderBeforeSleep) {
+		render()
+	}
+}
+
+
+src\helpers\sleep.ts
+export async function sleep(time: number) {
+  await new Promise(resolve => {
+    setTimeout(() => {
+      resolve(null)
+    }, time)
+  })
+}
+
+
+src\models\Edge.ts
+import { Node } from './Node'
+
+class Edge {
+	adjacentNode: Node
+	weight: number
+	status: 'standart' | 'no-direction' = 'standart'
+	type: 'default' | 'forward' | 'cross' | 'back' = 'default'
+
+	constructor(
+		adjacentNode: Node,
+		weight: number,
+		status: 'standart' | 'no-direction' = 'standart'
+	) {
+		this.adjacentNode = adjacentNode
+		this.weight = weight
+		this.status = status
+	}
+}
+
+export { Edge }
+
+
+src\models\Graph.ts
+import { Edge } from './Edge'
+import { Node } from './Node'
+
+export type GraphValue = string
+
+export class Graph {
+	graph = new Map<GraphValue, Node>()
+	mode: 'directed' | 'undirected' = 'directed'
+	weights: boolean = false
+
+	addOrGetNode(
+		graph: Map<GraphValue, Node>,
+		value: GraphValue,
+		x?: number,
+		y?: number
+	) {
+		if (value.length === 0) return null
+		if (graph.has(value)) return graph.get(value) as Node
+
+		const node: Node = new Node(value, x, y)
+		graph.set(value, node)
+
+		return node
+	}
+
+	toggleEdge(fromNode: Node, toNode: Node, weight: number = 1) {
+		const findedEdgeFromTo = [...fromNode.edges].find(edge => {
+			return edge.adjacentNode === toNode
+		})
+
+		const findedEdgeToFrom = [...toNode.edges].find(edge => {
+			return edge.adjacentNode === fromNode
+		})
+
+		if (findedEdgeFromTo) {
+			if (findedEdgeFromTo.status === 'no-direction') {
+				findedEdgeFromTo.status = 'standart'
+				return
+			}
+
+			fromNode.edges.delete(findedEdgeFromTo)
+			toNode.parents.delete(fromNode)
+
+			if (findedEdgeToFrom) {
+				if (this.mode === 'directed') {
+					if (findedEdgeToFrom.status === 'no-direction') {
+						toNode.edges.delete(findedEdgeToFrom)
+						fromNode.parents.delete(toNode)
+					}
+
+					if (findedEdgeToFrom.status === 'standart') {
+						const newEdge = new Edge(toNode, 1, 'no-direction')
+						fromNode.edges.add(newEdge)
+						toNode.parents.set(fromNode, newEdge)
+					}
+				}
+
+				if (this.mode === 'undirected') {
+					toNode.edges.delete(findedEdgeToFrom)
+					fromNode.parents.delete(toNode)
+				}
+			}
+		} else {
+			const newEdge = new Edge(toNode, weight, 'standart')
+			fromNode.edges.add(newEdge)
+			toNode.parents.set(fromNode, newEdge)
+
+			if (!findedEdgeToFrom) {
+				if (this.mode === 'directed') {
+					const newEdge = new Edge(fromNode, weight, 'no-direction')
+					toNode.edges.add(newEdge)
+					fromNode.parents.set(toNode, newEdge)
+				}
+
+				if (this.mode === 'undirected') {
+					const newEdge = new Edge(fromNode, weight, 'standart')
+					toNode.edges.add(newEdge)
+					fromNode.parents.set(toNode, newEdge)
+				}
+			}
+		}
+	}
+
+	createGraph(newGraphData: {
+		nodes: {
+			value: GraphValue
+			x: number
+			y: number
+		}[]
+		edges: {
+			from: GraphValue
+			to: GraphValue
+			weight: number
+		}[]
+	}) {
+		const newGraph = new Map<GraphValue, Node>()
+
+		for (const nodeData of newGraphData.nodes) {
+			this.addOrGetNode(newGraph, nodeData.value, nodeData.x, nodeData.y)
+		}
+
+		for (const row of newGraphData.edges) {
+			const node = this.addOrGetNode(newGraph, row.from)
+
+			if (!node) continue
+
+			const adjuacentNode = this.addOrGetNode(newGraph, row.to)
+
+			if (adjuacentNode === null) continue
+
+			this.toggleEdge(node, adjuacentNode, row.weight)
+		}
+
+		return newGraph
+	}
+}
+
+
+src\models\Node.ts
+import { Edge } from './Edge'
+
+import { GraphValue } from './Graph'
+
+class Node {
+	value: GraphValue
+	edges = new Set<Edge>()
+	parents = new Map<Node, Edge>()
+
+	x: number | null = null
+	y: number | null = null
+	status: 'default' | 'progress' | 'done' | 'passed' = 'default'
+
+	constructor(
+		value: GraphValue,
+		x: number | null = null,
+		y: number | null = null
+	) {
+		this.value = value
+
+		this.x = x
+		this.y = y
+	}
+
+	toString() {
+		return JSON.stringify({
+			from: this.value,
+			to: -1,
+			weight: 1,
+			x: this.x,
+			y: this.y
+		})
+	}
+}
+
+export { Node }
+
+
+src\modules\ContextMenu.ts
+export class ContextMenu {
+	root: Element
+	items: (ContextItem<unknown> | ContextDivider)[] = []
+
+	private _open = false
+
+	get open() {
+		return this._open
+	}
+
+	set open(value: boolean) {
+		this._open = value
+	}
+
+	close() {
+		this.root.innerHTML = ''
+		this.items = []
+		this.root.setAttribute('style', '')
+
+		this.open = false
+	}
+
+	constructor() {
+		const root = document.querySelector('#contextMenu')
+
+		if (!root) {
+			throw new Error('Error in context root')
+		}
+
+		this.root = root
+
+		this.root.addEventListener('mousedown', e => {
+			e.stopPropagation()
+		})
+	}
+
+	renderItems() {
+		this.root.innerHTML = ''
+
+		this.items.map(item => {
+			if (item instanceof ContextDivider) {
+				const divider = document.createElement('div')
+				divider.className = 'context-menu__divider'
+				this.root.append(divider)
+				return
+			}
+
+			const button = document.createElement('button')
+			button.className = 'context-menu__button'
+
+			button.innerHTML = `
+			<div class="context-menu__button_key">${item.key?.name}</div>
+			<div class="content-menu__button_name">${item.text}</div>
+			`
+
+			button.addEventListener('click', e => {
+				item.callback(e.target as HTMLButtonElement, item.other)
+			})
+
+			this.root.append(button)
+		})
+
+		this.open = true
+	}
+
+	addItem(item: ContextItem<unknown> | ContextDivider) {
+		this.items.push(item)
+	}
+
+	changePosition(x: number, y: number) {
+		this.root.setAttribute('style', `top: ${y}px; left: ${x}px`)
+	}
+
+	keyPressed(key: string) {
+		const itemByPressedKey = this.items.find(item => {
+			if (!(item instanceof ContextItem)) return false
+
+			return item.key?.code === key
+		}) as ContextItem<unknown>
+
+		console.log(key, itemByPressedKey)
+
+		if (!itemByPressedKey) return
+
+		itemByPressedKey.callback(
+			document.createElement('button'),
+			itemByPressedKey.other
+		)
+	}
+}
+
+interface ContextItemKey {
+	name: string
+	code: string
+}
+
+export class ContextItem<T> {
+	text: string
+	callback: (target: HTMLButtonElement, other: T) => Promise<void>
+	other?: T
+	key?: ContextItemKey
+
+	constructor(
+		text: string,
+		callback: (target: HTMLButtonElement, other: T) => Promise<void>,
+		other?: T,
+		key?: ContextItemKey
+	) {
+		this.text = text
+		this.callback = callback
+		this.other = other
+		this.key = key
+	}
+}
+
+export class ContextDivider {}
+
+
+src\modules\Form.ts
+function getRandomInt(max: number) {
+	return Math.floor(Math.random() * max)
+}
+
+export class Form {
+	inputs: HTMLElement[] = []
+	title: string
+	callback: (value: Record<string, string>) => void
+	customOutput: HTMLElement | null = null
+
+	constructor(
+		title: string,
+		callback: (value: Record<string, string>) => void
+	) {
+		this.title = title
+		this.callback = callback
+	}
+
+	addInput(key: string, title: string) {
+		const id = `${getRandomInt(1000)}-${new Date().getTime()}`
+
+		const label = document.createElement('label')
+		label.className = 'panel__form-label'
+		label.htmlFor = id
+
+		const div = document.createElement('div')
+		div.textContent = title
+
+		const input = document.createElement('input')
+		input.className = 'panel__form-input panel__form-input--from'
+		input.id = id
+		input.dataset.key = key
+		input.type = 'text'
+
+		label.append(div, input)
+
+		this.inputs.push(label)
+	}
+
+	renderCustomOutput = (child: HTMLElement | string) => {
+		if (!this.customOutput) return
+
+		if (typeof child === 'string') {
+			this.customOutput.innerHTML = child
+			return
+		}
+
+		this.customOutput.innerHTML = ''
+		this.customOutput.append(child)
+	}
+
+	getForRender() {
+		const form = document.createElement('form')
+		form.className = 'panel__form'
+
+		const h2 = document.createElement('h2')
+		h2.className = 'panel__form-heading'
+		h2.textContent = this.title
+
+		form.append(h2)
+		form.append(...this.inputs)
+
+		const button = document.createElement('button')
+		button.textContent = 'Run'
+		button.className = 'panel__form-button'
+
+		const customOutput = document.createElement('pre')
+		customOutput.className = 'div'
+
+		this.customOutput = customOutput
+
+		form.append(button)
+		form.append(customOutput)
+
+		form.onsubmit = e => {
+			e.preventDefault()
+
+			const allInputs = [
+				...(e.target as HTMLFormElement).querySelectorAll('input')
+			]
+
+			const result = allInputs.reduce((acc, input) => {
+				const key = input.dataset.key
+
+				if (!key) {
+					return acc
+				}
+
+				return {
+					...acc,
+					[key]: input.value
+				}
+			}, {})
+
+			this.callback(result)
+		}
+
+		return form
+	}
+}
+
+
+src\modules\Menu.ts
+type TextColors =
+	| 'pink'
+	| 'green'
+	| 'sky'
+	| 'amber'
+	| 'lime'
+	| 'teal'
+	| 'indigo'
+	| 'purple'
+	| 'rose'
+
+export class Menu {
+	items: [MenuItem | MenuDivider, TextColors][] = []
+
+	section: Element
+
+	constructor() {
+		const section = document.querySelector('#menu')
+
+		if (!section) {
+			throw new Error('section not found')
+		}
+
+		this.section = section
+	}
+
+	render() {
+		const nav = document.createElement('nav')
+		nav.className = 'menu__nav'
+
+		const ul = document.createElement('ul')
+		ul.className = 'menu__list'
+
+		ul.append(
+			...this.items.map(([item, color]) => {
+				const listElement = document.createElement('li')
+				listElement.className = 'menu__item'
+
+				if (item instanceof MenuItem) {
+					const button = document.createElement('button')
+					button.className = `menu__link menu__link--${color}`
+
+					button.textContent = item.text
+					button.onclick = async e => {
+						if (item.highlight) {
+							button.classList.add('menu__link--active')
+						}
+
+						await item.callback(e.target as HTMLButtonElement)
+
+						if (item.highlight) {
+							button.classList.remove('menu__link--active')
+						}
+					}
+
+					listElement.append(button)
+				}
+
+				if (item instanceof MenuDivider) {
+					const divider = document.createElement('div')
+					divider.className = `menu__divider`
+
+					listElement.append(divider)
+				}
+
+				return listElement
+			})
+		)
+
+		nav.append(ul)
+		nav.onclick = e => {
+			e.stopPropagation()
+		}
+
+		this.section.innerHTML = ''
+		this.section.append(nav)
+	}
+
+	addItem(item: MenuItem | MenuDivider, color: TextColors = 'pink') {
+		this.items.push([item, color])
+	}
+}
+
+export class MenuDivider {}
+
+export class MenuItem {
+	text: string
+	callback: (target: HTMLButtonElement) => Promise<void>
+	highlight: boolean
+
+	constructor(
+		text: string,
+		callback: (target: HTMLButtonElement) => Promise<void>,
+		highlight: boolean = false
+	) {
+		this.text = text
+		this.callback = callback
+		this.highlight = highlight
+	}
+}
+
+
+src\modules\Panel.ts
+export class SidePanel {
+	root: HTMLElement
+	public formId: string = ''
+	private _opened: boolean = false
+
+	get opened() {
+		return this._opened
+	}
+
+	set opened(newValue: boolean) {
+		this._opened = newValue
+		if (newValue === false) {
+			this.root.classList.remove('panel--opened')
+		} else {
+			this.root.classList.add('panel--opened')
+		}
+	}
+
+	constructor(id: string) {
+		const newRoot = document.querySelector(`.${id}`)
+
+		if (!newRoot) {
+			throw new Error('Error with SidePanel id')
+		}
+
+		this.root = newRoot as HTMLElement
+	}
+
+	renderForm(form: HTMLElement, formId: string) {
+		this.root.innerHTML = ''
+		this.root.append(form)
+		this.formId = formId
+	}
+
+	open() {
+		this.opened = true
+	}
+
+	close() {
+		this.opened = false
+	}
+}
+
+
+src\modules\Render.ts
+import { NODE_COLORS } from '../config/nodeColors.ts'
+import { Node } from '../models/Node.ts'
+import { Graph } from '../models/Graph.ts'
+
+export class Render {
+	#getNodeStatusForRender(
+		node: Node,
+		currentClickedTarget: HTMLElement | null
+	) {
+		return currentClickedTarget &&
+			currentClickedTarget.dataset.elementid === node.value
+			? 'checked'
+			: node.status
+	}
+
+	#getRenderedCircles(
+		graph: Graph,
+		offsetX: number,
+		offsetY: number,
+		currentClickedTarget: HTMLElement | null
+	) {
+		return [...graph.graph.entries()].map(([_, node]) => {
+			const status = this.#getNodeStatusForRender(node, currentClickedTarget)
+			const x = (node.x ?? 0) + offsetX
+			const y = (node.y ?? 0) + offsetY
+
+			return `<g
+						fixed="false"
+						style="cursor: pointer;"
+					>
+						<circle
+							class="content--circle"
+							stroke-width="2"
+							fill="${NODE_COLORS[status]}"
+							stroke="black"
+							r="19"
+							data-elementId="${node.value}"
+							cx="${x}"
+							cy="${y}"
+						></circle>
+						<text
+							class="content--text"
+							font-size="14"
+							dy=".35em"
+							text-anchor="middle"
+							stroke-width="1"
+							fill="black"
+							stroke="black"
+							data-elementId="${node.value}"
+							x="${x}"
+							y="${y}"
+							style="user-select: none"
+						>
+							${node.value}
+						</text>
+					</g>`
+		})
+	}
+
+	#getLinesForRender(graph: Graph, offsetX: number, offsetY: number) {
+		return (
+			[...graph.graph.entries()]
+				// eslint-disable-next-line
+				.map(([_, node]) => {
+					return [...node.edges].map(edge => {
+						const adjacentNodeX = edge.adjacentNode.x ?? 0
+						const adjacentNodeY = edge.adjacentNode.y ?? 0
+						const nodeX = node.x ?? 0
+						const nodeY = node.y ?? 0
+
+						const vectorOne = [adjacentNodeX - nodeX, adjacentNodeY - nodeY]
+						const vectorOneProtectionToX = [Math.abs(adjacentNodeX - nodeX), 0]
+
+						const top =
+							vectorOne[0] * vectorOneProtectionToX[0] +
+							vectorOne[1] * vectorOneProtectionToX[1]
+						const bottom =
+							Math.sqrt(vectorOne[0] ** 2 + vectorOne[1] ** 2) *
+							Math.sqrt(
+								vectorOneProtectionToX[0] ** 2 + vectorOneProtectionToX[1] ** 2
+							)
+
+						const arrowRotateDeg = (Math.acos(top / bottom) * 180) / Math.PI
+						const arrowRotateDegWithReflection =
+							vectorOne[1] < 0 ? 360 - arrowRotateDeg : arrowRotateDeg
+
+						const distanceFromCenter = [
+							19 * Math.cos((arrowRotateDegWithReflection * Math.PI) / 180),
+							19 * Math.sin((arrowRotateDegWithReflection * Math.PI) / 180)
+						]
+
+						if (edge.status === 'no-direction' && graph.mode !== 'undirected')
+							return
+
+						const color =
+							edge.status === 'no-direction' && window.DEBUG
+								? 'green'
+								: edge.type === 'default'
+								  ? 'black'
+								  : edge.type === 'back'
+								    ? 'lightblue'
+								    : edge.type === 'cross'
+								      ? 'lightgreen'
+								      : 'lightpink'
+
+						const arrow = `<path stroke="${color}" fill="${color}" d="M -15 5.5 L 0 0 L -15 -5.5 Z" transform="translate (${
+							adjacentNodeX + offsetX - distanceFromCenter[0]
+						} ${
+							adjacentNodeY + offsetY - distanceFromCenter[1]
+						}) rotate(${arrowRotateDegWithReflection})"></path>`
+
+						const textPosition = {
+							x: (nodeX + adjacentNodeX) / 2 + distanceFromCenter[0] + offsetX,
+							y: (nodeY + adjacentNodeY) / 2 + distanceFromCenter[1] + offsetY
+						}
+
+						const text = `
+							<text x="${textPosition.x}" y="${textPosition.y}" data-edge-text-id-back="${edge}" style="stroke:white; stroke-width:0.6em">${edge.weight}</text>
+							<text x="${textPosition.x}" y="${textPosition.y}" data-edge-text-id="${edge.adjacentNode.value}-${edge.weight}-${edge.status}" style="fill:black">${edge.weight}</text> `
+
+						return `<g>
+							<path
+							class="content--edge"
+								d="M ${nodeX + offsetX} ${nodeY + offsetY} L ${adjacentNodeX + offsetX} ${
+									adjacentNodeY + offsetY
+								}"
+								fill="none"
+								stroke-width="2"
+								stroke="${color}"
+							></path>
+							${graph.mode === 'directed' || window.DEBUG ? arrow : ''}
+							${graph.weights ? text : ''}
+						</g>`
+					})
+				})
+				.flat()
+		)
+	}
+
+	render(
+		graph: Graph,
+		offsetX: number,
+		offsetY: number,
+		pressedKeyCode: string | null,
+		currentClickedTarget: HTMLElement | null
+	) {
+		const ourNodes = this.#getRenderedCircles(
+			graph,
+			offsetX,
+			offsetY,
+			currentClickedTarget
+		)
+		const ourEdges = this.#getLinesForRender(graph, offsetX, offsetY)
+
+		const content = document.querySelector<HTMLDivElement>('#content')
+
+		if (!content) {
+			throw new Error('No content')
+		}
+
+		content.innerHTML = `
+			<div class="graph__wrapper">
+				<svg
+				width="100%"
+				height="100%"
+				preserveAspectRatio="none"
+				cursor="${pressedKeyCode === 'Space' ? 'grabbing' : 'default'}"
+				>
+					<g>
+						<g>
+							${ourEdges.join(' ')}
+						</g>
+						<g>
+							${ourNodes.join(' ')}
+						</g>
+					</g>
+				</svg>
+			</div>
+		`
+	}
+}
+
+
+src\presets\default.ts
+import { Preset } from '../types/PresetItem.ts'
+
+export const DEFAULT_PRESET: Preset = {
+	nodes: [
+		{ value: '1', x: 751, y: 189 },
+		{ value: '2', x: 516, y: 335 },
+		{ value: '3', x: 691, y: 372 },
+		{ value: '4', x: 1020, y: 336 },
+		{ value: '5', x: 390, y: 508 },
+		{ value: '6', x: 564, y: 511 },
+		{ value: '7', x: 681, y: 502 },
+		{ value: '8', x: 855, y: 494 },
+		{ value: '9', x: 961, y: 492 },
+		{ value: '10', x: 1136, y: 484 },
+		{ value: '11', x: 622, y: 657 },
+		{ value: '12', x: 1002, y: 646 },
+		{ value: '13', x: 813, y: 649 }
+	],
+	edges: [
+		{ from: '1', to: '9', weight: 1 },
+		{ from: '1', to: '2', weight: 1 },
+		{ from: '1', to: '3', weight: 1 },
+		{ from: '1', to: '4', weight: 1 },
+		{ from: '2', to: '5', weight: 1 },
+		{ from: '2', to: '6', weight: 1 },
+		{ from: '3', to: '7', weight: 1 },
+		{ from: '3', to: '8', weight: 1 },
+		{ from: '4', to: '9', weight: 1 },
+		{ from: '4', to: '10', weight: 1 },
+		{ from: '5', to: '', weight: 1 },
+		{ from: '6', to: '11', weight: 1 },
+		{ from: '7', to: '11', weight: 1 },
+		{ from: '8', to: '1', weight: 1 },
+		{ from: '9', to: '12', weight: 1 },
+		{ from: '10', to: '', weight: 1 },
+		{ from: '11', to: '13', weight: 1 },
+		{ from: '12', to: '', weight: 1 },
+		{ from: '13', to: '12', weight: 1 }
+	]
+}
+
+
+src\presets\index.ts
+export { WEIGHTS_PRESET } from './weights.ts'
+export { MINUS_WEIGHTS_PRESET } from './minusWeights.ts'
+export { DEFAULT_PRESET } from './default.ts'
+
+
+src\presets\minusWeights.ts
+import { Preset } from '../types/PresetItem'
+
+export const MINUS_WEIGHTS_PRESET: Preset = {
+	nodes: [
+		{ value: '1', x: 500, y: 500 },
+		{ value: '1', x: 500, y: 500 },
+		{ value: '1', x: 500, y: 500 },
+		{ value: '1', x: 500, y: 500 },
+		{ value: '2', x: 494, y: 216 },
+		{ value: '3', x: 984, y: 336 },
+		{ value: '3', x: 984, y: 336 },
+		{ value: '3', x: 984, y: 336 },
+		{ value: '4', x: 668, y: 346 },
+		{ value: '5', x: 123, y: 333 },
+		{ value: '5', x: 123, y: 333 },
+		{ value: '6', x: 396, y: 338 },
+		{ value: '6', x: 396, y: 338 },
+		{ value: '7', x: 633, y: 6 },
+		{ value: '8', x: 888, y: 70 },
+		{ value: '9', x: 800, y: 214 }
+	],
+	edges: [
+		{ from: '1', to: '6', weight: 22 },
+		{ from: '1', to: '5', weight: -31 },
+		{ from: '1', to: '4', weight: -31 },
+		{ from: '1', to: '3', weight: 52 },
+		{ from: '2', to: '9', weight: 37 },
+		{ from: '3', to: '2', weight: -52 },
+		{ from: '3', to: '9', weight: 89 },
+		{ from: '3', to: '4', weight: -52 },
+		{ from: '4', to: '2', weight: 13 },
+		{ from: '5', to: '6', weight: -65 },
+		{ from: '5', to: '2', weight: 73 },
+		{ from: '6', to: '4', weight: 68 },
+		{ from: '6', to: '2', weight: -40 }
+	]
+}
+
+
+src\presets\weights.ts
+import { Preset } from '../types/PresetItem'
+
+export const WEIGHTS_PRESET: Preset = {
+	nodes: [
+		{ value: '1', x: 500, y: 500 },
+		{ value: '1', x: 500, y: 500 },
+		{ value: '1', x: 500, y: 500 },
+		{ value: '1', x: 500, y: 500 },
+		{ value: '2', x: 494, y: 216 },
+		{ value: '3', x: 984, y: 336 },
+		{ value: '3', x: 984, y: 336 },
+		{ value: '3', x: 984, y: 336 },
+		{ value: '4', x: 668, y: 346 },
+		{ value: '5', x: 123, y: 333 },
+		{ value: '5', x: 123, y: 333 },
+		{ value: '6', x: 396, y: 338 },
+		{ value: '6', x: 396, y: 338 },
+		{ value: '7', x: 633, y: 6 },
+		{ value: '8', x: 888, y: 70 },
+		{ value: '9', x: 800, y: 214 }
+	],
+	edges: [
+		{ from: '1', to: '6', weight: 22 },
+		{ from: '1', to: '5', weight: 31 },
+		{ from: '1', to: '4', weight: 31 },
+		{ from: '1', to: '3', weight: 52 },
+		{ from: '2', to: '9', weight: 37 },
+		{ from: '3', to: '2', weight: 52 },
+		{ from: '3', to: '9', weight: 89 },
+		{ from: '3', to: '4', weight: 52 },
+		{ from: '4', to: '2', weight: 13 },
+		{ from: '5', to: '6', weight: 65 },
+		{ from: '5', to: '2', weight: 73 },
+		{ from: '6', to: '4', weight: 68 },
+		{ from: '6', to: '2', weight: 40 },
+		{ from: '7', to: '', weight: 18 },
+		{ from: '8', to: '', weight: 81 },
+		{ from: '9', to: '', weight: 60 }
+	]
+}
+
+
+src\types\Offset.ts
+export interface Offset {
+	offsetX: number
+	offsetY: number
+}
+
+
+src\types\PresetItem.ts
+export interface PresetNode {
+	value: string
+	x: number
+	y: number
+}
+
+export interface PresetEdge {
+	from: string
+	to: string
+	weight: number
+}
+
+export interface Preset {
+	nodes: PresetNode[]
+	edges: PresetEdge[]
+}
+
+
+src\types\StoragePresets.ts
+import { PresetEdge, PresetNode } from './PresetItem.ts'
+
+export type StoragePresets = Record<
+	string,
+	{
+		nodes: PresetNode[]
+		edges: PresetEdge[]
+	}
+>
+
+
+src\utils\OffsetStorage.ts
+import { Offset } from '../types/Offset.ts'
+
+export class OffsetStorage {
+	key = 'offsets'
+
+	writeAll(data: Offset) {
+		localStorage.setItem(this.key, JSON.stringify(data))
+	}
+
+	read() {
+		const value = localStorage.getItem(this.key)
+
+		if (!value) {
+			return null
+		}
+
+		return JSON.parse(value)
+	}
+}
+
+
+src\utils\PresetStorage.ts
+import { StoragePresets } from '../types/StoragePresets.ts'
+
+export class PresetStorage {
+	key = 'presets'
+
+	writeAll(data: StoragePresets) {
+		localStorage.setItem(this.key, JSON.stringify(data))
+	}
+
+	read() {
+		const value = localStorage.getItem(this.key)
+
+		if (!value) {
+			return null
+		}
+
+		return JSON.parse(value)
+	}
+}
+
+
+src\utils\WindowManager.ts
+/* eslint-disable */
+/* Remove eslint disable on usage :) */
+
+class WindowManager {
+	offsetUpdateCallback: (() => void) | null = null
+	presetsUpdateCallback: (() => void) | null = null
+
+	constructor() {
+		addEventListener('storage', event => {
+			if (event.key === 'offsets') {
+				if (this.offsetUpdateCallback) {
+					this.offsetUpdateCallback()
+				}
+			}
+
+			if (event.key === 'presets') {
+				if (this.presetsUpdateCallback) {
+					this.presetsUpdateCallback()
+				}
+			}
+		})
+
+		window.addEventListener('beforeunload', e => {
+			alert('beforeunload' + JSON.stringify(e))
+		})
+	}
+
+	setUpdateOffsetCallback(callback: () => void) {
+		this.offsetUpdateCallback = callback
+	}
+
+	setPresetsUpdateCallback(callback: () => void) {
+		this.presetsUpdateCallback = callback
+	}
+}
+
+export default WindowManager
+
+
